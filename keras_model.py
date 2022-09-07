@@ -64,9 +64,22 @@ def get_model(inputDim):
 
     return Model(inputs=inputLayer, outputs=h)
 #########################################################################
-
-
 def load_model(file_path):
     return keras.models.load_model(file_path)
 
+
+#########################################################################
+import torch
+import torch.nn as nn
+#########################################################################
+# pytorch model
+#########################################################################\
+class Net(nn.module):
+    def __init__(self, inputDim):
+        super(Net, self).__init__()
+
+        self.input = torch.randn(inputDim)
+        
     
+    def forward(self):
+        pass

@@ -194,6 +194,9 @@ if __name__ == "__main__":
 
         # train model
         print("============== MODEL TRAINING ==============")
+        ########################################################################################
+        # keras model training
+        ########################################################################################
         model = keras_model.get_model(param["feature"]["n_mels"] * param["feature"]["frames"])
         model.summary()
 
@@ -205,9 +208,16 @@ if __name__ == "__main__":
                             shuffle=param["fit"]["shuffle"],
                             validation_split=param["fit"]["validation_split"],
                             verbose=param["fit"]["verbose"])
-        
+
         visualizer.loss_plot(history.history["loss"], history.history["val_loss"])
         visualizer.save_figure(history_img)
         model.save(model_file_path)
         com.logger.info("save_model -> {}".format(model_file_path))
         print("============== END TRAINING ==============")
+        ########################################################################################
+
+        ########################################################################################
+        # pytorch
+        ########################################################################################
+        model = keras_model.get_model(param["feature"]["n_mels"] * param["feature"]["frames"])
+        
