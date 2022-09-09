@@ -218,6 +218,30 @@ if __name__ == "__main__":
 
         ########################################################################################
         # pytorch
+        import torch.nn as nn
+        import torch
+        from torch.utils.data import DataLoader, random_split
         ########################################################################################
         model = keras_model.get_model(param["feature"]["n_mels"] * param["feature"]["frames"])
         
+        '''
+        1. Dataset input to model
+        2. Define optimizer and loss
+        3. Validation
+        '''
+        
+        loss = nn.MSELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+        epochs = int(param["fit"]["epochs"])
+        batch_size = int(param["fit"]["epochs"])
+
+        validation_split = param["fit"]["validation_split"]
+        validation_size = int(len(train_data) * validation_split)
+        train_size = len(train_data) - validation_size
+
+        train_dataset, validation_dataset = random_split(train_data, [train_size, validation_size])
+        train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
+        validation_loader = DataLoader(dataset=validation_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
+
+        for epoch in range(epochs):
+            pass
