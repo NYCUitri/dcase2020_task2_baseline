@@ -26,7 +26,7 @@ from tqdm import tqdm
 from sklearn import metrics
 # original lib
 import common as com
-import keras_model
+import pytorch_model
 ########################################################################
 
 
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         if not os.path.exists(model_file):
             com.logger.error("{} model not found ".format(machine_type))
             sys.exit(-1)
-        model = keras_model.load_model(model_file)
+        model = pytorch_model.load_model(model_file)
         model.summary()
 
         if mode:

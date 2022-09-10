@@ -22,7 +22,7 @@ import numpy
 from tqdm import tqdm
 # original lib
 import common as com
-import keras_model
+import pytorch_model
 ########################################################################
 
 
@@ -197,7 +197,7 @@ if __name__ == "__main__":
         ########################################################################################
         # keras model training
         ########################################################################################
-        model = keras_model.get_model(param["feature"]["n_mels"] * param["feature"]["frames"])
+        model = pytorch_model.get_model(param["feature"]["n_mels"] * param["feature"]["frames"])
         model.summary()
 
         model.compile(**param["fit"]["compile"])
@@ -221,8 +221,9 @@ if __name__ == "__main__":
         import torch.nn as nn
         import torch
         from torch.utils.data import DataLoader, random_split
+        from pytorch_model import Net
         ########################################################################################
-        model = keras_model.get_model(param["feature"]["n_mels"] * param["feature"]["frames"])
+        model = Net(param["feature"]["n_mels"] * param["feature"]["frames"])
         
         '''
         1. Dataset input to model
@@ -240,8 +241,10 @@ if __name__ == "__main__":
         train_size = len(train_data) - validation_size
 
         train_dataset, validation_dataset = random_split(train_data, [train_size, validation_size])
-        train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
-        validation_loader = DataLoader(dataset=validation_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
+        train_batches = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
+        validation_batches = DataLoader(dataset=validation_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
 
         for epoch in range(epochs):
-            pass
+            loss = 0
+            for batch, _ in train_batches:
+                reconstructed = model()
