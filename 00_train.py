@@ -171,8 +171,11 @@ if __name__ == "__main__":
         print("[{idx}/{total}] {dirname}".format(dirname=target_dir, idx=idx+1, total=len(dirs)))
 
         # set path
+        '''
+        model_file_path change to .pt
+        '''
         machine_type = os.path.split(target_dir)[1]
-        model_file_path = "{model}/model_{machine_type}.hdf5".format(model=param["model_directory"],
+        model_file_path = "{model}/model_{machine_type}.pt".format(model=param["model_directory"],
                                                                      machine_type=machine_type)
         history_img = "{model}/history_{machine_type}.png".format(model=param["model_directory"],
                                                                   machine_type=machine_type)
@@ -222,6 +225,7 @@ if __name__ == "__main__":
         import torch
         from torch.utils.data import DataLoader, random_split
         from pytorch_model import Net
+        from tqdm import tqdm
         ########################################################################################
         model = Net(param["feature"]["n_mels"] * param["feature"]["frames"])
         
@@ -231,20 +235,48 @@ if __name__ == "__main__":
         3. Validation
         '''
         
-        loss = nn.MSELoss()
+        loss_function = nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
         epochs = int(param["fit"]["epochs"])
         batch_size = int(param["fit"]["epochs"])
 
-        validation_split = param["fit"]["validation_split"]
-        validation_size = int(len(train_data) * validation_split)
-        train_size = len(train_data) - validation_size
+        val_split = param["fit"]["validation_split"]
+        val_size = int(len(train_data) * val_split)
+        train_size = len(train_data) - val_size
 
-        train_dataset, validation_dataset = random_split(train_data, [train_size, validation_size])
+        train_dataset, valid_dataset = random_split(train_data, [train_size, val_size])
         train_batches = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
-        validation_batches = DataLoader(dataset=validation_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
+        val_batches = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
 
-        for epoch in range(epochs):
-            loss = 0
-            for batch, _ in train_batches:
-                reconstructed = model()
+        train_loss_list = []
+        val_loss_list = []
+
+        for epoch in range(1, epochs+1):
+            train_loss = 0.0
+            val_loss = 0.0
+            print("Epoch: {}".format(epoch))
+
+            model.train()
+            for batch, _ in tqdm(train_batches):
+                optimizer.zero_grad()
+                reconstructed = model(batch)
+
+                loss = loss_function(reconstructed, batch)
+                loss.backward()
+                optimizer.step()
+                train_loss += loss.item() * len(batch)
+            
+            train_loss_list.append(train_loss)
+
+            model.eval()
+            for batch, _ in tqdm(val_batches):
+                output = model(batch)
+                loss = loss_function(output, batch)
+                val_loss += loss.item() * len(batch)
+
+            val_loss_list.append(val_loss)
+        
+        visualizer.loss_plot(train_loss_list, val_loss_list)
+        visualizer.save_figure(history_img)
+        torch.save(model, model_file_path)
+        com.logger.info("save_model -> {}".format(model_file_path))
