@@ -172,7 +172,10 @@ if __name__ == "__main__":
 
         print("============== MODEL LOAD ==============")
         # set model path
-        model_file = "{model}/model_{machine_type}.hdf5".format(model=param["model_directory"],
+        '''
+        model_file change to .pt
+        '''
+        model_file = "{model}/model_{machine_type}.pt".format(model=param["model_directory"],
                                                                 machine_type=machine_type)
 
         # load model file
@@ -211,9 +214,20 @@ if __name__ == "__main__":
                                                     n_fft=param["feature"]["n_fft"],
                                                     hop_length=param["feature"]["hop_length"],
                                                     power=param["feature"]["power"])
+
+                    '''
+                    change: testing
+                    '''
+                    prediction = model(data)
+                    errors = numpy.mean(numpy.square(data - prediction), axis=1)
+                    y_pred[file_idx] = numpy.mean(errors)
+                    anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]])
+
+                    ############################################################################
                     errors = numpy.mean(numpy.square(data - model.predict(data)), axis=1)
                     y_pred[file_idx] = numpy.mean(errors)
                     anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]])
+                    ############################################################################
                 except:
                     com.logger.error("file broken!!: {}".format(file_path))
 

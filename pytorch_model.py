@@ -74,7 +74,7 @@ import torch
 import torch.nn as nn
 #########################################################################
 # pytorch model
-#########################################################################\
+#########################################################################
 class Net(nn.module):
     def __init__(self, inputDim):
         super(Net, self).__init__()
@@ -130,3 +130,6 @@ class Net(nn.module):
         output = self.output(decoded)
         
         return output
+###################################################################
+def load_model(file_path):
+    return torch.load(file_path)
