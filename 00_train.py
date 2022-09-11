@@ -200,7 +200,7 @@ if __name__ == "__main__":
         ########################################################################################
         # keras model training
         ########################################################################################
-        model = pytorch_model.get_model(param["feature"]["n_mels"] * param["feature"]["frames"])
+        """ model = pytorch_model.get_model(param["feature"]["n_mels"] * param["feature"]["frames"])
         model.summary()
 
         model.compile(**param["fit"]["compile"])
@@ -216,7 +216,7 @@ if __name__ == "__main__":
         visualizer.save_figure(history_img)
         model.save(model_file_path)
         com.logger.info("save_model -> {}".format(model_file_path))
-        print("============== END TRAINING ==============")
+        print("============== END TRAINING ==============") """
         ########################################################################################
 
         ########################################################################################
