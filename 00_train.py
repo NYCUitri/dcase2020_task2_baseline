@@ -19,7 +19,7 @@ import sys
 ########################################################################
 import numpy
 # from import
-from tqdm import tqdm
+#from tqdm import tqdm
 # original lib
 import common as com
 import pytorch_model
@@ -103,7 +103,8 @@ def list_to_vector_array(file_list,
     dims = n_mels * frames
 
     # iterate file_to_vector_array()
-    for idx in tqdm(range(len(file_list)), desc=msg):
+    #for idx in tqdm(range(len(file_list)), desc=msg):
+    for idx in range(len(file_list)):
         vector_array = com.file_to_vector_array(file_list[idx],
                                                 n_mels=n_mels,
                                                 frames=frames,
@@ -225,7 +226,6 @@ if __name__ == "__main__":
         import torch
         from torch.utils.data import DataLoader, random_split
         from pytorch_model import Net
-        from tqdm import tqdm
         ########################################################################################
         model = Net(param["feature"]["n_mels"] * param["feature"]["frames"])
         
@@ -257,7 +257,8 @@ if __name__ == "__main__":
             print("Epoch: {}".format(epoch))
 
             model.train()
-            for batch, _ in tqdm(train_batches):
+            #for batch, _ in tqdm(train_batches):
+            for batch, _ in train_batches:
                 optimizer.zero_grad()
                 reconstructed = model(batch)
 
@@ -265,11 +266,13 @@ if __name__ == "__main__":
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item() * len(batch)
+                # divide by size -> normalize?
             
             train_loss_list.append(train_loss)
 
             model.eval()
-            for batch, _ in tqdm(val_batches):
+            #for batch, _ in tqdm(val_batches):
+            for batch, _ in val_batches:
                 output = model(batch)
                 loss = loss_function(output, batch)
                 val_loss += loss.item() * len(batch)
