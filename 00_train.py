@@ -19,10 +19,12 @@ import sys
 ########################################################################
 import numpy
 # from import
-#from tqdm import tqdm
+from tqdm import tqdm
 # original lib
 import common as com
 import pytorch_model
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE" 
 ########################################################################
 
 
@@ -238,7 +240,7 @@ if __name__ == "__main__":
         loss_function = nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
         epochs = int(param["fit"]["epochs"])
-        batch_size = int(param["fit"]["epochs"])
+        batch_size = int(param["fit"]["batch_size"])
 
         val_split = param["fit"]["validation_split"]
         val_size = int(len(train_data) * val_split)
@@ -257,8 +259,7 @@ if __name__ == "__main__":
             print("Epoch: {}".format(epoch))
 
             model.train()
-            #for batch, _ in tqdm(train_batches):
-            for batch, _ in train_batches:
+            for batch in tqdm(train_batches):
                 optimizer.zero_grad()
                 reconstructed = model(batch)
 
@@ -271,8 +272,8 @@ if __name__ == "__main__":
             train_loss_list.append(train_loss)
 
             model.eval()
-            #for batch, _ in tqdm(val_batches):
-            for batch, _ in val_batches:
+            for batch in tqdm(val_batches):
+            #for batch, _ in val_batches:
                 output = model(batch)
                 loss = loss_function(output, batch)
                 val_loss += loss.item() * len(batch)

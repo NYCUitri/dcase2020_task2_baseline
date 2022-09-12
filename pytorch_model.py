@@ -7,75 +7,13 @@
 
 ########################################################################
 # import python-library
-########################################################################
-# from import
-from re import M
-import keras.models
-from keras.models import Model
-from keras.layers import Input, Dense, BatchNormalization, Activation
-
-########################################################################
-# keras model
-########################################################################
-def get_model(inputDim):
-    """
-    define the keras model
-    the model based on the simple dense auto encoder 
-    (128*128*128*128*8*128*128*128*128)
-    """
-    inputLayer = Input(shape=(inputDim,))
-
-    h = Dense(128)(inputLayer)
-    h = BatchNormalization()(h)
-    h = Activation('relu')(h)
-
-    h = Dense(128)(h)
-    h = BatchNormalization()(h)
-    h = Activation('relu')(h)
-
-    h = Dense(128)(h)
-    h = BatchNormalization()(h)
-    h = Activation('relu')(h)
-
-    h = Dense(128)(h)
-    h = BatchNormalization()(h)
-    h = Activation('relu')(h)
-    
-    h = Dense(8)(h)
-    h = BatchNormalization()(h)
-    h = Activation('relu')(h)
-
-    h = Dense(128)(h)
-    h = BatchNormalization()(h)
-    h = Activation('relu')(h)
-
-    h = Dense(128)(h)
-    h = BatchNormalization()(h)
-    h = Activation('relu')(h)
-
-    h = Dense(128)(h)
-    h = BatchNormalization()(h)
-    h = Activation('relu')(h)
-
-    h = Dense(128)(h)
-    h = BatchNormalization()(h)
-    h = Activation('relu')(h)
-
-    h = Dense(inputDim)(h)
-
-    return Model(inputs=inputLayer, outputs=h)
-#########################################################################
-def load_model(file_path):
-    return keras.models.load_model(file_path)
-
-
 #########################################################################
 import torch
 import torch.nn as nn
 #########################################################################
 # pytorch model
 #########################################################################
-class Net(nn.module):
+class Net(nn.Module):
     def __init__(self, inputDim):
         super(Net, self).__init__()
 
@@ -116,7 +54,7 @@ class Net(nn.module):
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
-            nn.Liner(128, 256),
+            nn.Linear(128, 256),
             nn.BatchNorm1d(256),
             nn.ReLU()
         )
