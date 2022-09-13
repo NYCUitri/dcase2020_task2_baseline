@@ -229,7 +229,9 @@ if __name__ == "__main__":
         from torch.utils.data import DataLoader, random_split
         from pytorch_model import Net
         ########################################################################################
-        model = Net(param["feature"]["n_mels"] * param["feature"]["frames"])
+        inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
+        model = Net(inputDim)
+        model.double()
         
         '''
         1. Dataset input to model

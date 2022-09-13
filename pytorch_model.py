@@ -62,8 +62,7 @@ class Net(nn.Module):
         self.output = nn.Linear(256, inputDim)
 
     def forward(self, x):
-        input = self.input(x)
-        encoded = self.encoder(input)
+        encoded = self.encoder(x)
         decoded = self.decoder(encoded)
         output = self.output(decoded)
         
