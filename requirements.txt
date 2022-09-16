@@ -6,7 +6,6 @@ scikit-learn==0.20.2
 librosa==0.6.0
 audioread==2.1.5
 setuptools==41.0.0
-tensorflow==1.15.0
 tqdm==4.23.4
 torch==1.10.2
-numba==0.48.0
+torchsummary==1.5.1

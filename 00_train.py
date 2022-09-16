@@ -23,8 +23,7 @@ from tqdm import tqdm
 # original lib
 import common as com
 import pytorch_model
-import os
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE" 
+#os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE" 
 ########################################################################
 
 
@@ -255,6 +254,8 @@ if __name__ == "__main__":
         train_loss_list = []
         val_loss_list = []
 
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
         for epoch in range(1, epochs+1):
             train_loss = 0.0
             val_loss = 0.0
@@ -262,24 +263,26 @@ if __name__ == "__main__":
 
             model.train()
             for batch in tqdm(train_batches):
+            #for batch in train_batches:
                 optimizer.zero_grad()
-                reconstructed = model(batch)
+                reconstructed = model(batch).to(device)
 
                 loss = loss_function(reconstructed, batch)
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item() * len(batch)
                 # divide by size -> normalize?
-            
+            train_loss /= train_size
             train_loss_list.append(train_loss)
 
             model.eval()
             for batch in tqdm(val_batches):
             #for batch, _ in val_batches:
-                output = model(batch)
+                output = model(batch).to(device)
                 loss = loss_function(output, batch)
                 val_loss += loss.item() * len(batch)
 
+            val_loss /= val_size
             val_loss_list.append(val_loss)
         
         visualizer.loss_plot(train_loss_list, val_loss_list)

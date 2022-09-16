@@ -17,8 +17,6 @@ class Net(nn.Module):
     def __init__(self, inputDim):
         super(Net, self).__init__()
 
-        self.input = torch.randn(inputDim)
-
         self.encoder = nn.Sequential(
             nn.Linear(inputDim, 256),
             nn.BatchNorm1d(256),

@@ -14,6 +14,7 @@ import csv
 import re
 import itertools
 import sys
+import torch
 ########################################################################
 
 
@@ -27,6 +28,8 @@ from sklearn import metrics
 # original lib
 import common as com
 import pytorch_model
+from torchsummary import summary
+from torch.utils.data import DataLoader
 ########################################################################
 
 
@@ -183,7 +186,9 @@ if __name__ == "__main__":
             com.logger.error("{} model not found ".format(machine_type))
             sys.exit(-1)
         model = pytorch_model.load_model(model_file)
-        model.summary()
+        model.double()
+        #inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
+        #summary(model.float(), input_size=(inputDim, ))
 
         if mode:
             # results by type
@@ -218,15 +223,21 @@ if __name__ == "__main__":
                     '''
                     change: testing
                     '''
-                    prediction = model(data)
-                    errors = numpy.mean(numpy.square(data - prediction), axis=1)
+                    errors = []
+                    model.eval()
+                    test_batches = DataLoader(dataset=data, batch_size=param["fit"]["batch_size"])
+                    with torch.no_grad():
+                        for batch in test_batches:
+                            prediction = model(batch)
+                            errors.append(numpy.mean(numpy.square(batch - prediction)), axis=1)
+
                     y_pred[file_idx] = numpy.mean(errors)
                     anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]])
 
                     ############################################################################
-                    errors = numpy.mean(numpy.square(data - model.predict(data)), axis=1)
+                    """ errors = numpy.mean(numpy.square(data - model.predict(data)), axis=1)
                     y_pred[file_idx] = numpy.mean(errors)
-                    anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]])
+                    anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]]) """
                     ############################################################################
                 except:
                     com.logger.error("file broken!!: {}".format(file_path))
