@@ -185,10 +185,10 @@ if __name__ == "__main__":
         if not os.path.exists(model_file):
             com.logger.error("{} model not found ".format(machine_type))
             sys.exit(-1)
+
         model = pytorch_model.load_model(model_file)
-        model.double()
-        #inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
-        #summary(model.float(), input_size=(inputDim, ))
+        inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
+        summary(model.float(), input_size=(inputDim, ))
 
         if mode:
             # results by type
@@ -212,35 +212,37 @@ if __name__ == "__main__":
             print("\n============== BEGIN TEST FOR A MACHINE ID ==============")
             y_pred = [0. for k in test_files]
             for file_idx, file_path in tqdm(enumerate(test_files), total=len(test_files)):
-                try:
-                    data = com.file_to_vector_array(file_path,
-                                                    n_mels=param["feature"]["n_mels"],
-                                                    frames=param["feature"]["frames"],
-                                                    n_fft=param["feature"]["n_fft"],
-                                                    hop_length=param["feature"]["hop_length"],
-                                                    power=param["feature"]["power"])
+                #try:
+                data = com.file_to_vector_array(file_path,
+                                                n_mels=param["feature"]["n_mels"],
+                                                frames=param["feature"]["frames"],
+                                                n_fft=param["feature"]["n_fft"],
+                                                hop_length=param["feature"]["hop_length"],
+                                                power=param["feature"]["power"])
 
-                    '''
-                    change: testing
-                    '''
-                    errors = []
-                    model.eval()
-                    test_batches = DataLoader(dataset=data, batch_size=param["fit"]["batch_size"])
+                '''
+                change: testing
+                '''
+                errors = []
+                model.eval()
+                for i in range(len(data)):
                     with torch.no_grad():
-                        for batch in test_batches:
-                            prediction = model(batch)
-                            errors.append(numpy.mean(numpy.square(batch - prediction)), axis=1)
+                        model.double()
+                        vector = torch.DoubleTensor(data[i])
+                        vector = vector.view(-1, len(vector))
+                        prediction = model(vector)
+                        errors.append(torch.mean(torch.square(vector - prediction), axis=1))
 
-                    y_pred[file_idx] = numpy.mean(errors)
-                    anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]])
+                y_pred[file_idx] = numpy.mean(errors)
+                anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]])
 
-                    ############################################################################
-                    """ errors = numpy.mean(numpy.square(data - model.predict(data)), axis=1)
-                    y_pred[file_idx] = numpy.mean(errors)
-                    anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]]) """
-                    ############################################################################
-                except:
-                    com.logger.error("file broken!!: {}".format(file_path))
+                ############################################################################
+                """ errors = numpy.mean(numpy.square(data - model.predict(data)), axis=1)
+                y_pred[file_idx] = numpy.mean(errors)
+                anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]]) """
+                ############################################################################
+                """ except:
+                    com.logger.error("file broken!!: {}".format(file_path)) """
 
             # save anomaly score
             save_csv(save_file_path=anomaly_score_csv, save_data=anomaly_score_list)
