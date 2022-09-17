@@ -1,3 +1,4 @@
 *.pyc
-*.wav
 *.log
+/dev_data/
+/model/
