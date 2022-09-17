@@ -270,9 +270,9 @@ if __name__ == "__main__":
                 loss = loss_function(reconstructed, batch)
                 loss.backward()
                 optimizer.step()
-                train_loss += loss.item() * len(batch)
+                train_loss += loss.item()
                 # divide by size -> normalize?
-            train_loss /= train_size
+            train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 
             model.eval()
@@ -280,9 +280,9 @@ if __name__ == "__main__":
             #for batch, _ in val_batches:
                 output = model(batch).to(device)
                 loss = loss_function(output, batch)
-                val_loss += loss.item() * len(batch)
+                val_loss += loss.item()
 
-            val_loss /= val_size
+            val_loss /= len(val_batches)
             val_loss_list.append(val_loss)
         
         visualizer.loss_plot(train_loss_list, val_loss_list)
