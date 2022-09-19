@@ -182,9 +182,9 @@ if __name__ == "__main__":
         history_img = "{model}/history_{machine_type}.png".format(model=param["model_directory"],
                                                                   machine_type=machine_type)
 
-        if os.path.exists(model_file_path):
-            com.logger.info("model exists")
-            continue
+        # if os.path.exists(model_file_path):
+        #     com.logger.info("model exists")
+        #     continue
 
         # generate dataset
         print("============== DATASET_GENERATOR ==============")
@@ -229,7 +229,10 @@ if __name__ == "__main__":
         from pytorch_model import Net
         ########################################################################################
         inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
-        model = Net(inputDim)
+        paramF = param["feature"]["frames"]
+        paramM = param["feature"]["n_mels"]
+
+        model = Net(inputDim, paramF, paramM)
         model.double()
         
         '''
@@ -238,7 +241,9 @@ if __name__ == "__main__":
         3. Validation
         '''
         
-        loss_function = nn.MSELoss()
+        loss_function = nn.CrossEntropyLoss()
+        # loss_function = nn.MSELoss()
+
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
         epochs = int(param["fit"]["epochs"])
         batch_size = int(param["fit"]["batch_size"])
@@ -256,22 +261,29 @@ if __name__ == "__main__":
 
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
-        for epoch in range(1, epochs+1):
+        for epoch in range(1, epochs + 1):
             train_loss = 0.0
             val_loss = 0.0
             print("Epoch: {}".format(epoch))
 
             model.train()
+
+            # FIXME: calculate loss
             for batch in tqdm(train_batches):
             #for batch in train_batches:
                 optimizer.zero_grad()
                 reconstructed = model(batch).to(device)
+                print("reconstructed", reconstructed.size())
+                print("batch", batch)
 
-                loss = loss_function(reconstructed, batch)
+                loss = loss_function(reconstructed, )
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
-                # divide by size -> normalize?
+
+            print("loss: ", loss)
+
+            # FIXME: divide by size -> normalize?
             train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 

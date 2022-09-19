@@ -8,25 +8,26 @@
 ########################################################################
 # import python-library
 #########################################################################
+from multiprocessing.synchronize import Condition
 import torch
 import torch.nn as nn
+# from torch.autograd import Variable
+# from torchvision.datasets import CIFAR10
 #########################################################################
 # pytorch model
 #########################################################################
 class Net(nn.Module):
-    def __init__(self, inputDim):
+    def __init__(self, inputDim, paramF, paramM):
         super(Net, self).__init__()
 
+        # Encoder (E)
         self.encoder = nn.Sequential(
-            nn.Linear(inputDim, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
+            # nn.Linear(inputDim, 256),
 
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
+            nn.Flatten(),
 
-            nn.Linear(128, 128),
+            # DenseBlock
+            nn.Linear(inputDim, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
@@ -34,17 +35,18 @@ class Net(nn.Module):
             nn.BatchNorm1d(64),
             nn.ReLU(),
 
-            nn.Linear(64, 8),
-            nn.BatchNorm1d(8),
-            nn.ReLU()
-        )
-
-        self.decoder = nn.Sequential(
-            nn.Linear(8, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(64, 32),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
 
-            nn.Linear(64, 128),
+            nn.Linear(32, 16),
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+        )
+        
+        # Decoder (D)
+        self.decoder = nn.Sequential(
+            nn.Linear(16, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
@@ -52,19 +54,49 @@ class Net(nn.Module):
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
-            nn.Linear(128, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU()
+            nn.Linear(128, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+
+            nn.Linear(128, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+
+            # FIXME: not sure
+            nn.Linear(128, paramF * paramM * 128),
+            nn.BatchNorm1d(paramF * paramM * 128),
+            nn.ReLU(),
+
+            Reshape(128, paramF, paramM)
+        )
+
+        # Conditioning (Hr, Hb)
+        self.condition = nn.Sequential(
+            nn.Linear(16, 16),
+            nn.Sigmoid(),
+            
+            nn.Linear(16, 16),
         )
     
-        self.output = nn.Linear(256, inputDim)
+        # self.output = nn.Linear(256, inputDim)
 
     def forward(self, x):
         encoded = self.encoder(x)
-        decoded = self.decoder(encoded)
-        output = self.output(decoded)
+        condition = self.condition(encoded)
+        decoded = self.decoder(condition)
         
-        return output
+        return decoded
 ###################################################################
+
+# Reshape Layer
+class Reshape(nn.Module): 
+    def __init__(self, *args):
+        super(Reshape, self).__init__()
+        self.shape = args
+    
+    def forward(self, x):
+        # return x.view(self.shape)
+        return x.view((x.size(0),)+self.shape)
+
 def load_model(file_path):
     return torch.load(file_path)
