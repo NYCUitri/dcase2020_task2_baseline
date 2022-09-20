@@ -254,7 +254,7 @@ if __name__ == "__main__":
         train_loss_list = []
         val_loss_list = []
 
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = 'cuda'
         
         for epoch in range(1, epochs+1):
             train_loss = 0.0
