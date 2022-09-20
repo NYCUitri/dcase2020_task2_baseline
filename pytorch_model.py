@@ -17,7 +17,7 @@ import torch.nn as nn
 # pytorch model
 #########################################################################
 class Net(nn.Module):
-    def __init__(self, inputDim, paramF, paramM):
+    def __init__(self, paramF, paramM):
         super(Net, self).__init__()
 
         # Encoder (E)
@@ -27,7 +27,7 @@ class Net(nn.Module):
             nn.Flatten(),
 
             # DenseBlock
-            nn.Linear(inputDim, 128),
+            nn.Linear(paramF * paramM, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
@@ -63,11 +63,11 @@ class Net(nn.Module):
             nn.ReLU(),
 
             # FIXME: not sure
-            nn.Linear(128, paramF * paramM * 128),
-            nn.BatchNorm1d(paramF * paramM * 128),
+            nn.Linear(128, paramF * paramM),
+            nn.BatchNorm1d(paramF * paramM),
             nn.ReLU(),
 
-            Reshape(128, paramF, paramM)
+            Reshape(paramF, paramM)
         )
 
         # Conditioning (Hr, Hb)
@@ -96,7 +96,7 @@ class Reshape(nn.Module):
     
     def forward(self, x):
         # return x.view(self.shape)
-        return x.view((x.size(0),)+self.shape)
+        return x.view(self.shape[0], self.shape[1])
 
 def load_model(file_path):
     return torch.load(file_path)
