@@ -232,7 +232,7 @@ if __name__ == "__main__":
         paramF = param["feature"]["frames"]
         paramM = param["feature"]["n_mels"]
 
-        model = Net(inputDim, paramF, paramM)
+        model = Net(paramF, paramM)
         model.double()
         
         '''
@@ -282,12 +282,6 @@ if __name__ == "__main__":
                 optimizer.step()
                 train_loss += loss.item()
 
-<<<<<<< HEAD
-            print("loss: ", loss)
-
-            # FIXME: divide by size -> normalize?
-=======
->>>>>>> e048354c69a63a4dbe2645771a7b5a4dcf3c5fda
             train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 
