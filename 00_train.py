@@ -254,8 +254,9 @@ if __name__ == "__main__":
         train_loss_list = []
         val_loss_list = []
 
-        device = 'cuda'
-        
+        device = torch.device("cuda")
+        model.to(device)
+
         for epoch in range(1, epochs+1):
             train_loss = 0.0
             val_loss = 0.0
@@ -263,21 +264,21 @@ if __name__ == "__main__":
 
             model.train()
             for batch in tqdm(train_batches):
-            #for batch in train_batches:
                 optimizer.zero_grad()
+                batch = batch.to(device)
                 reconstructed = model(batch).to(device)
 
                 loss = loss_function(reconstructed, batch)
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
-                # divide by size -> normalize?
+
             train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 
             model.eval()
             for batch in tqdm(val_batches):
-            #for batch, _ in val_batches:
+                batch = batch.to(device)
                 output = model(batch).to(device)
                 loss = loss_function(output, batch)
                 val_loss += loss.item()
