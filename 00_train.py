@@ -259,9 +259,10 @@ if __name__ == "__main__":
         train_loss_list = []
         val_loss_list = []
 
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        
-        for epoch in range(1, epochs + 1):
+        device = torch.device("cuda")
+        model.to(device)
+
+        for epoch in range(1, epochs+1):
             train_loss = 0.0
             val_loss = 0.0
             print("Epoch: {}".format(epoch))
@@ -270,8 +271,8 @@ if __name__ == "__main__":
 
             # FIXME: calculate loss
             for batch in tqdm(train_batches):
-            #for batch in train_batches:
                 optimizer.zero_grad()
+                batch = batch.to(device)
                 reconstructed = model(batch).to(device)
                 print("reconstructed", reconstructed.size())
                 print("batch", batch)
@@ -281,15 +282,18 @@ if __name__ == "__main__":
                 optimizer.step()
                 train_loss += loss.item()
 
+<<<<<<< HEAD
             print("loss: ", loss)
 
             # FIXME: divide by size -> normalize?
+=======
+>>>>>>> e048354c69a63a4dbe2645771a7b5a4dcf3c5fda
             train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 
             model.eval()
             for batch in tqdm(val_batches):
-            #for batch, _ in val_batches:
+                batch = batch.to(device)
                 output = model(batch).to(device)
                 loss = loss_function(output, batch)
                 val_loss += loss.item()
