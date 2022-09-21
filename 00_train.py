@@ -23,7 +23,7 @@ from tqdm import tqdm
 # original lib
 import common as com
 import pytorch_model
-#os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE" 
+import gc
 ########################################################################
 
 
@@ -290,3 +290,6 @@ if __name__ == "__main__":
         visualizer.save_figure(history_img)
         torch.save(model, model_file_path)
         com.logger.info("save_model -> {}".format(model_file_path))
+
+        del train_data
+        gc.collect()
