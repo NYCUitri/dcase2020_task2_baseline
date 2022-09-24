@@ -200,28 +200,6 @@ if __name__ == "__main__":
         # train model
         print("============== MODEL TRAINING ==============")
         ########################################################################################
-        # keras model training
-        ########################################################################################
-        """ model = pytorch_model.get_model(param["feature"]["n_mels"] * param["feature"]["frames"])
-        model.summary()
-
-        model.compile(**param["fit"]["compile"])
-        history = model.fit(train_data,
-                            train_data,
-                            epochs=param["fit"]["epochs"],
-                            batch_size=param["fit"]["batch_size"],
-                            shuffle=param["fit"]["shuffle"],
-                            validation_split=param["fit"]["validation_split"],
-                            verbose=param["fit"]["verbose"])
-
-        visualizer.loss_plot(history.history["loss"], history.history["val_loss"])
-        visualizer.save_figure(history_img)
-        model.save(model_file_path)
-        com.logger.info("save_model -> {}".format(model_file_path))
-        print("============== END TRAINING ==============") """
-        ########################################################################################
-
-        ########################################################################################
         # pytorch
         import torch.nn as nn
         import torch
@@ -237,7 +215,7 @@ if __name__ == "__main__":
         2. Define optimizer and loss
         3. Validation
         '''
-        
+
         loss_function = nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
         epochs = int(param["fit"]["epochs"])
@@ -253,7 +231,7 @@ if __name__ == "__main__":
 
         train_loss_list = []
         val_loss_list = []
-
+        
         device = torch.device("cuda")
         model.to(device)
 
@@ -288,7 +266,7 @@ if __name__ == "__main__":
         
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)
-        torch.save(model, model_file_path)
+        torch.save(model.stat_dict(), model_file_path)
         com.logger.info("save_model -> {}".format(model_file_path))
 
         del train_data
