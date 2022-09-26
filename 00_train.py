@@ -23,7 +23,6 @@ from tqdm import tqdm
 # original lib
 import common as com
 import pytorch_model
-import gc
 ########################################################################
 
 
@@ -209,7 +208,6 @@ if __name__ == "__main__":
         inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
         model = Net(inputDim)
         model.double()
-        
         '''
         1. Dataset input to model
         2. Define optimizer and loss
@@ -231,8 +229,8 @@ if __name__ == "__main__":
 
         train_loss_list = []
         val_loss_list = []
-        
-        device = torch.device("cuda")
+
+        device = torch.device('cuda')
         model.to(device)
 
         for epoch in range(1, epochs+1):
@@ -268,6 +266,3 @@ if __name__ == "__main__":
         visualizer.save_figure(history_img)
         torch.save(model.stat_dict(), model_file_path)
         com.logger.info("save_model -> {}".format(model_file_path))
-
-        del train_data
-        gc.collect()
