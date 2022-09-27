@@ -241,8 +241,8 @@ if __name__ == "__main__":
         3. Validation
         '''
         
-        loss_function = nn.CrossEntropyLoss()
-        # loss_function = nn.MSELoss()
+        # loss_function = nn.CrossEntropyLoss()
+        loss_function = nn.MSELoss()
 
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
         epochs = int(param["fit"]["epochs"])
@@ -272,11 +272,12 @@ if __name__ == "__main__":
             for batch in tqdm(train_batches):
             #for batch in train_batches:
                 optimizer.zero_grad()
-                reconstructed = model(batch).to(device)
-                print("reconstructed", reconstructed.size())
-                print("batch", batch)
+                batch = batch.to(device)
+                output = model(batch).to(device)
+                # print("\n\nreconstructed", output.size())
+                # print("batch", batch.size())
 
-                loss = loss_function(reconstructed, )
+                loss = loss_function(output, batch)
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()

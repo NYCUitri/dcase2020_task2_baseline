@@ -63,22 +63,20 @@ class Net(nn.Module):
             nn.ReLU(),
 
             # FIXME: not sure
-            nn.Linear(128, paramF * paramM * 128),
-            nn.BatchNorm1d(paramF * paramM * 128),
-            nn.ReLU(),
+            nn.Linear(128, inputDim),
 
-            Reshape(128, paramF, paramM)
+            # FIXME: (F, M)
+            # Reshape(256, inputDim)
         )
 
         # Conditioning (Hr, Hb)
         self.condition = nn.Sequential(
             nn.Linear(16, 16),
             nn.Sigmoid(),
-            
+
             nn.Linear(16, 16),
         )
-    
-        # self.output = nn.Linear(256, inputDim)
+
 
     def forward(self, x):
         encoded = self.encoder(x)
@@ -96,7 +94,7 @@ class Reshape(nn.Module):
     
     def forward(self, x):
         # return x.view(self.shape)
-        return x.view((x.size(0),)+self.shape)
+        return x.view(self.shape[0], -1)
 
 def load_model(file_path):
     return torch.load(file_path)
