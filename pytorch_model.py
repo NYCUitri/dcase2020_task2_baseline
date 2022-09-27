@@ -97,4 +97,4 @@ class Reshape(nn.Module):
         return x.view(self.shape[0], -1)
 
 def load_model(file_path):
-    return torch.load(file_path)
+    return torch.load_state_dict(torch.load(file_path))

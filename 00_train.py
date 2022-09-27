@@ -23,7 +23,6 @@ from tqdm import tqdm
 # original lib
 import common as com
 import pytorch_model
-#os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE" 
 ########################################################################
 
 
@@ -200,28 +199,6 @@ if __name__ == "__main__":
         # train model
         print("============== MODEL TRAINING ==============")
         ########################################################################################
-        # keras model training
-        ########################################################################################
-        """ model = pytorch_model.get_model(param["feature"]["n_mels"] * param["feature"]["frames"])
-        model.summary()
-
-        model.compile(**param["fit"]["compile"])
-        history = model.fit(train_data,
-                            train_data,
-                            epochs=param["fit"]["epochs"],
-                            batch_size=param["fit"]["batch_size"],
-                            shuffle=param["fit"]["shuffle"],
-                            validation_split=param["fit"]["validation_split"],
-                            verbose=param["fit"]["verbose"])
-
-        visualizer.loss_plot(history.history["loss"], history.history["val_loss"])
-        visualizer.save_figure(history_img)
-        model.save(model_file_path)
-        com.logger.info("save_model -> {}".format(model_file_path))
-        print("============== END TRAINING ==============") """
-        ########################################################################################
-
-        ########################################################################################
         # pytorch
         import torch.nn as nn
         import torch
@@ -234,13 +211,11 @@ if __name__ == "__main__":
 
         model = Net(inputDim, paramF, paramM)
         model.double()
-        
         '''
         1. Dataset input to model
         2. Define optimizer and loss
         3. Validation
-        '''
-        
+        '''  
         # loss_function = nn.CrossEntropyLoss()
         loss_function = nn.MSELoss()
 
@@ -259,9 +234,10 @@ if __name__ == "__main__":
         train_loss_list = []
         val_loss_list = []
 
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        
-        for epoch in range(1, epochs + 1):
+        device = torch.device('cuda')
+        model = model.to(device=device, dtype=torch.double)
+
+        for epoch in range(1, epochs+1):
             train_loss = 0.0
             val_loss = 0.0
             print("Epoch: {}".format(epoch))
@@ -270,18 +246,16 @@ if __name__ == "__main__":
 
             # FIXME: calculate loss
             for batch in tqdm(train_batches):
-            #for batch in train_batches:
                 optimizer.zero_grad()
                 batch = batch.to(device)
-                output = model(batch).to(device)
+                reconstructed = model(batch).to(device)
                 # print("\n\nreconstructed", output.size())
                 # print("batch", batch.size())
 
-                loss = loss_function(output, batch)
+                loss = loss_function(reconstructed, batch)
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
-
             print("loss: ", loss)
 
             # FIXME: divide by size -> normalize?
@@ -290,7 +264,7 @@ if __name__ == "__main__":
 
             model.eval()
             for batch in tqdm(val_batches):
-            #for batch, _ in val_batches:
+                batch = batch.to(device)
                 output = model(batch).to(device)
                 loss = loss_function(output, batch)
                 val_loss += loss.item()
@@ -300,5 +274,5 @@ if __name__ == "__main__":
         
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)
-        torch.save(model, model_file_path)
+        torch.save(model.stat_dict(), model_file_path)
         com.logger.info("save_model -> {}".format(model_file_path))
