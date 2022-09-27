@@ -231,7 +231,7 @@ if __name__ == "__main__":
         val_loss_list = []
 
         device = torch.device('cuda')
-        model.to(device)
+        model = model.to(device=device, dtype=torch.double)
 
         for epoch in range(1, epochs+1):
             train_loss = 0.0
