@@ -64,21 +64,19 @@ class Net(nn.Module):
 
             # FIXME: not sure
             nn.Linear(128, paramF * paramM),
-            nn.BatchNorm1d(paramF * paramM),
-            nn.ReLU(),
 
-            Reshape(paramF, paramM)
+            # FIXME: (F, M)
+            # Reshape(256, inputDim)
         )
 
         # Conditioning (Hr, Hb)
         self.condition = nn.Sequential(
             nn.Linear(16, 16),
             nn.Sigmoid(),
-            
+
             nn.Linear(16, 16),
         )
-    
-        # self.output = nn.Linear(256, inputDim)
+
 
     def forward(self, x):
         encoded = self.encoder(x)

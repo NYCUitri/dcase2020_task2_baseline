@@ -219,10 +219,9 @@ if __name__ == "__main__":
         1. Dataset input to model
         2. Define optimizer and loss
         3. Validation
-        '''
-        
-        loss_function = nn.CrossEntropyLoss()
-        # loss_function = nn.MSELoss()
+        '''  
+        # loss_function = nn.CrossEntropyLoss()
+        loss_function = nn.MSELoss()
 
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
         epochs = int(param["fit"]["epochs"])
@@ -241,8 +240,8 @@ if __name__ == "__main__":
         train_loss_list = []
         val_loss_list = []
 
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model = model.to(device=device, dtype=torch.double, non_blocking=True)
+        device = torch.device('cuda')
+        model = model.to(device=device, dtype=torch.double)
 
         for epoch in range(1, epochs+1):
             train_loss = 0.0
@@ -257,11 +256,11 @@ if __name__ == "__main__":
                 batch = batch.to(device, non_blocking=True)
                 reconstructed = model(batch).to(device, non_blocking=True)
 
-                loss = loss_function(reconstructed, )
+                loss = loss_function(reconstructed, batch)
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
-
+                
             train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 
