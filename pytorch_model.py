@@ -97,6 +97,3 @@ class Reshape(nn.Module):
     def forward(self, x):
         # return x.view(self.shape)
         return x.view((x.size(0), ) + self.shape)
-
-def load_model(file_path):
-    return torch.load(file_path)
