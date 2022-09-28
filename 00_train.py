@@ -23,6 +23,7 @@ from tqdm import tqdm
 # original lib
 import common as com
 import pytorch_model
+import random
 ########################################################################
 
 
@@ -141,6 +142,9 @@ def file_list_generator(target_dir,
     if len(files) == 0:
         com.logger.exception("no_wav_file!!")
 
+    file_num = int(len(files) / 2) if len(files) > 2000 else len(files)
+    random.shuffle(files)
+    files = files[:file_num]
     com.logger.info("train_file num : {num}".format(num=len(files)))
     return files
 ########################################################################
@@ -219,6 +223,8 @@ if __name__ == "__main__":
         epochs = int(param["fit"]["epochs"])
         batch_size = int(param["fit"]["batch_size"])
 
+        #data_size = len(train_data) if len(train_data) < 1500 * batch_size else 1500 * batch_size
+        #train_data = train_data[:data_size]
         val_split = param["fit"]["validation_split"]
         val_size = int(len(train_data) * val_split)
         train_size = len(train_data) - val_size
@@ -230,8 +236,8 @@ if __name__ == "__main__":
         train_loss_list = []
         val_loss_list = []
 
-        device = torch.device('cuda')
-        model = model.to(device=device, dtype=torch.double)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model = model.to(device=device, dtype=torch.double, non_blocking=True)
 
         for epoch in range(1, epochs+1):
             train_loss = 0.0
@@ -241,8 +247,8 @@ if __name__ == "__main__":
             model.train()
             for batch in tqdm(train_batches):
                 optimizer.zero_grad()
-                batch = batch.to(device)
-                reconstructed = model(batch).to(device)
+                batch = batch.to(device, non_blocking=True)
+                reconstructed = model(batch).to(device, non_blocking=True)
 
                 loss = loss_function(reconstructed, batch)
                 loss.backward()
@@ -254,8 +260,8 @@ if __name__ == "__main__":
 
             model.eval()
             for batch in tqdm(val_batches):
-                batch = batch.to(device)
-                output = model(batch).to(device)
+                batch = batch.to(device, non_blocking=True)
+                output = model(batch).to(device, non_blocking=True)
                 loss = loss_function(output, batch)
                 val_loss += loss.item()
 
@@ -264,5 +270,9 @@ if __name__ == "__main__":
         
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)
-        torch.save(model.stat_dict(), model_file_path)
+        torch.save(model.state_dict(), model_file_path)
         com.logger.info("save_model -> {}".format(model_file_path))
+
+        del train_data, train_batches, val_batches
+        import gc
+        gc.collect()

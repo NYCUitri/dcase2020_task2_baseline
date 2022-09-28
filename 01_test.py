@@ -21,13 +21,14 @@ import torch
 ########################################################################
 # import additional python-library
 ########################################################################
-import numpy
+import numpy as np
+#import cupy as cp
 # from import
 from tqdm import tqdm
 from sklearn import metrics
 # original lib
 import common as com
-import pytorch_model
+from pytorch_model import *
 from torchsummary import summary
 from torch.utils.data import DataLoader
 ########################################################################
@@ -115,16 +116,16 @@ def test_file_list_generator(target_dir,
                                                                                  prefix_normal=prefix_normal,
                                                                                  id_name=id_name,
                                                                                  ext=ext)))
-        normal_labels = numpy.zeros(len(normal_files))
+        normal_labels = np.zeros(len(normal_files))
         anomaly_files = sorted(
             glob.glob("{dir}/{dir_name}/{prefix_anomaly}_{id_name}*.{ext}".format(dir=target_dir,
                                                                                   dir_name=dir_name,
                                                                                   prefix_anomaly=prefix_anomaly,
                                                                                   id_name=id_name,
                                                                                   ext=ext)))
-        anomaly_labels = numpy.ones(len(anomaly_files))
-        files = numpy.concatenate((normal_files, anomaly_files), axis=0)
-        labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
+        anomaly_labels = np.ones(len(anomaly_files))
+        files = np.concatenate((normal_files, anomaly_files), axis=0)
+        labels = np.concatenate((normal_labels, anomaly_labels), axis=0)
         com.logger.info("test_file  num : {num}".format(num=len(files)))
         if len(files) == 0:
             com.logger.exception("no_wav_file!!")
@@ -186,9 +187,13 @@ if __name__ == "__main__":
             com.logger.error("{} model not found ".format(machine_type))
             sys.exit(-1)
 
-        model = pytorch_model.load_model(model_file)
         inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
-        summary(model.float(), input_size=(inputDim, ))
+        model = Net(inputDim=inputDim)
+        model.load_state_dict(torch.load(model_file))
+        
+        device = torch.device('cuda')
+        model = model.to(device)
+        #summary(model.float(), input_size=(inputDim, ))
 
         if mode:
             # results by type
@@ -228,12 +233,13 @@ if __name__ == "__main__":
                 for i in range(len(data)):
                     with torch.no_grad():
                         model.double()
-                        vector = torch.DoubleTensor(data[i])
-                        vector = vector.view(-1, len(vector))
-                        prediction = model(vector)
-                        errors.append(torch.mean(torch.square(vector - prediction), axis=1))
+                        vector = torch.DoubleTensor(data[i]).view(-1, len(data[i]))
+                        vector = vector.to(device)
+                        prediction = model(vector).to(device)
+                        errors.append(torch.mean(np.square(vector.cpu() - prediction.cpu()), dim=1, dtype=torch.float64))
+                        #errors.append(cp.mean(cp.square(vector - prediction), dim=1, dtype=torch.float64))
 
-                y_pred[file_idx] = numpy.mean(errors)
+                y_pred[file_idx] = np.mean(errors)
                 anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]])
 
                 ############################################################################
@@ -261,7 +267,7 @@ if __name__ == "__main__":
 
         if mode:
             # calculate averages for AUCs and pAUCs
-            averaged_performance = numpy.mean(numpy.array(performance, dtype=float), axis=0)
+            averaged_performance = np.mean(np.array(performance, dtype=float), axis=0)
             csv_lines.append(["Average"] + list(averaged_performance))
             csv_lines.append([])
 
