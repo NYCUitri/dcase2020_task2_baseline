@@ -16,15 +16,13 @@ import torch.nn as nn
 #########################################################################
 # pytorch model
 #########################################################################
-class Net(nn.Module):
+class Encoder(nn.moduel):
     def __init__(self, paramF, paramM):
-        super(Net, self).__init__()
+        super(Encoder, self).__init__()
 
         # Encoder (E)
         self.encoder = nn.Sequential(
-            # nn.Linear(inputDim, 256),
-
-            nn.Flatten(),
+            #nn.Flatten(),
 
             # DenseBlock
             nn.Linear(paramF * paramM, 128),
@@ -41,10 +39,32 @@ class Net(nn.Module):
 
             nn.Linear(32, 16),
             nn.BatchNorm1d(16),
-            nn.ReLU(),
+            nn.ReLU()
         )
-        
-        # Decoder (D)
+    
+    def foward(self, x):
+        return self.encoder(x)
+
+class Condition(nn.Module):
+    def __init__(self, classNum):
+        super(Condition, self).__init__()
+
+        # Conditioning (Hr, Hb)
+        # Hadamard Product
+        self.condition = nn.Sequential(
+            nn.Linear(classNum, 16),
+            nn.Sigmoid(),
+            nn.Linear(16, 16),
+        )
+
+    def forward(self, x): 
+        labeled_latent = self.condition(x)
+        return labeled_latent
+
+class Decoder(nn.Module):
+    def __init__(self, paramF, paramM):
+        super(Decoder, self).__init__()
+
         self.decoder = nn.Sequential(
             nn.Linear(16, 128),
             nn.BatchNorm1d(128),
@@ -62,29 +82,15 @@ class Net(nn.Module):
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
-            # FIXME: not sure
-            nn.Linear(128, paramF * paramM),
-
-            # FIXME: (F, M)
-            # Reshape(256, inputDim)
+            nn.Linear(128, paramF * paramM)
         )
 
-        # Conditioning (Hr, Hb)
-        self.condition = nn.Sequential(
-            nn.Linear(16, 16),
-            nn.Sigmoid(),
+        #self.reshape = Reshape((paramF, paramM))
 
-            nn.Linear(16, 16),
-        )
-
-
-    def forward(self, x):
-        encoded = self.encoder(x)
-        condition = self.condition(encoded)
-        decoded = self.decoder(condition)
-        
+    def foward(self, x):
+        decoded = self.decoder(x)
+        #output = self.reshape(decoded)
         return decoded
-###################################################################
 
 # Reshape Layer
 class Reshape(nn.Module): 
@@ -94,4 +100,4 @@ class Reshape(nn.Module):
     
     def forward(self, x):
         # return x.view(self.shape)
-        return x.view((x.size(0), ) + self.shape)
+        return x.view(-1, self.shape[0], self.shape[1])
