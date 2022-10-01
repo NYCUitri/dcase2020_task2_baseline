@@ -160,7 +160,7 @@ if __name__ == "__main__":
         sys.exit(-1)
 
     # make output result directory
-    os.makedirs(param["result_directory"]["c2ae"], exist_ok=True)
+    os.makedirs(param["result_directory"]["baseline"], exist_ok=True)
 
     # load base directory
     dirs = com.select_dirs(param=param, mode=mode)
@@ -179,27 +179,20 @@ if __name__ == "__main__":
         '''
         model_file change to .pt
         '''
-        encoder_file = "{model}/encoder_{machine_type}.pt".format(model=param["model_directory"]["c2ae"],
+        model_file = "{model}/model_{machine_type}.pt".format(model=param["model_directory"]["baseline"],
                                                                 machine_type=machine_type)
 
-        decoder_file = "{model}/decoder_{machine_type}.pt".format(model=param["model_directory"]["c2ae"],
-                                                                machine_type=machine_type)
         # load model file
-        if not os.path.exists(encoder_file) or not os.path.exisis(decoder_file):
+        if not os.path.exists(model_file):
             com.logger.error("{} model not found ".format(machine_type))
             sys.exit(-1)
 
-        paramF = param["feature"]["frames"]
-        paramM = param["feature"]["n_mels"]
-        
-        encoder = Encoder(paramF, paramM)
-        decoder = Decoder(paramF, paramM)
-        encoder.load_state_dict(torch.load(encoder_file))
-        decoder.load_state_dict(torch.load(decoder_file))
+        inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
+        model = Net(inputDim=inputDim)
+        model.load_state_dict(torch.load(model_file))
         
         device = torch.device('cuda')
-        encoder = encoder.to(device)
-        decoder = decoder.to(device)
+        model = model.to(device)
         #summary(model.float(), input_size=(inputDim, ))
 
         if mode:
@@ -216,7 +209,7 @@ if __name__ == "__main__":
 
             # setup anomaly score file path
             anomaly_score_csv = "{result}/anomaly_score_{machine_type}_{id_str}.csv".format(
-                                                                                     result=param["result_directory"]["c2ae"],
+                                                                                     result=param["result_directory"]["baseline"],
                                                                                      machine_type=machine_type,
                                                                                      id_str=id_str)
             anomaly_score_list = []
@@ -236,17 +229,13 @@ if __name__ == "__main__":
                 change: testing
                 '''
                 errors = []
-                encoder.eval()
-                decoder.eval()
-                encoder.double()
-                decoder.double()
-
+                model.eval()
                 for i in range(len(data)):
                     with torch.no_grad():
+                        model.double()
                         vector = torch.DoubleTensor(data[i]).view(-1, len(data[i]))
                         vector = vector.to(device)
-                        latent = encoder(vector).to(device)
-                        prediction = decoder(vector).to(device)
+                        prediction = model(vector).to(device)
                         errors.append(torch.mean(np.square(vector.cpu() - prediction.cpu()), dim=1, dtype=torch.float64))
                         #errors.append(cp.mean(cp.square(vector - prediction), dim=1, dtype=torch.float64))
 
@@ -284,6 +273,6 @@ if __name__ == "__main__":
 
     if mode:
         # output results
-        result_path = "{result}/{file_name}".format(result=param["result_directory"]["c2ae"], file_name=param["result_file"])
+        result_path = "{result}/{file_name}".format(result=param["result_directory"]["baseline"], file_name=param["result_file"])
         com.logger.info("AUC and pAUC results -> {}".format(result_path))
         save_csv(save_file_path=result_path, save_data=csv_lines)

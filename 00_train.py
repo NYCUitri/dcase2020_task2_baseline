@@ -162,7 +162,7 @@ if __name__ == "__main__":
         sys.exit(-1)
         
     # make output directory
-    os.makedirs(param["model_directory"]["c2ae"], exist_ok=True)
+    os.makedirs(param["model_directory"]["baseline"], exist_ok=True)
 
     # initialize the visualizer
     visualizer = visualizer()
@@ -180,14 +180,14 @@ if __name__ == "__main__":
         model_file_path change to .pt
         '''
         machine_type = os.path.split(target_dir)[1]
-        model_file_path = "{model}/model_{machine_type}.pt".format(model=param["model_directory"]["c2ae"],
+        model_file_path = "{model}/model_{machine_type}.pt".format(model=param["model_directory"]["baseline"],
                                                                      machine_type=machine_type)
-        history_img = "{model}/history_{machine_type}.png".format(model=param["model_directory"]["c2ae"],
+        history_img = "{model}/history_{machine_type}.png".format(model=param["model_directory"]["baseline"],
                                                                   machine_type=machine_type)
 
-        # if os.path.exists(model_file_path):
-        #     com.logger.info("model exists")
-        #     continue
+        if os.path.exists(model_file_path):
+            com.logger.info("model exists")
+            continue
 
         # generate dataset
         print("============== DATASET_GENERATOR ==============")
@@ -207,34 +207,24 @@ if __name__ == "__main__":
         import torch.nn as nn
         import torch
         from torch.utils.data import DataLoader, random_split
-        from pytorch_model import Encoder, Decoder, Condition
+        from pytorch_model import Net
         ########################################################################################
-        classNum = 6
-
-        paramF = param["feature"]["frames"]
-        paramM = param["feature"]["n_mels"]
-
-        encoder = Encoder(paramF, paramM)
-        condition = Condition(classNum)
-        decoder = Decoder(paramF, paramM)
-
-        encoder.double()
-        condition.double()
-        decoder.double()
+        inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
+        model = Net(inputDim)
+        model.double()
         '''
         1. Dataset input to model
         2. Define optimizer and loss
         3. Validation
-        '''  
-        # loss_function = nn.CrossEntropyLoss()
+        '''
+
         loss_function = nn.MSELoss()
-
-        en_optim = torch.optim.Adam(encoder.parameters(), lr=0.01)
-        de_optim = torch.optim.Adam(decoder.parameters(), lr=0.01)
-
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
         epochs = int(param["fit"]["epochs"])
         batch_size = int(param["fit"]["batch_size"])
 
+        #data_size = len(train_data) if len(train_data) < 1500 * batch_size else 1500 * batch_size
+        #train_data = train_data[:data_size]
         val_split = param["fit"]["validation_split"]
         val_size = int(len(train_data) * val_split)
         train_size = len(train_data) - val_size
@@ -246,45 +236,32 @@ if __name__ == "__main__":
         train_loss_list = []
         val_loss_list = []
 
-        device = torch.device('cuda')
-        encoder = encoder.to(device=device, dtype=torch.double)
-        condition = condition.to(device=device, dtype=torch.double)
-        decoder = decoder.to(device=device, dtype=torch.double)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model = model.to(device=device, dtype=torch.double, non_blocking=True)
 
-        # FIXME: encoder condition decoder training
-        """ for epoch in range(1, epochs+1):
+        for epoch in range(1, epochs+1):
             train_loss = 0.0
             val_loss = 0.0
             print("Epoch: {}".format(epoch))
 
-            encoder.train()
-            condition.train()
-            decoder.train()
-
+            model.train()
             for batch in tqdm(train_batches):
                 optimizer.zero_grad()
                 batch = batch.to(device, non_blocking=True)
-                
-                latent = encoder(batch).to(device, non_blocking=True)
-                labeled_latent = Condition(latent).to(device, non_blocking=True)
-                reconstructed = decoder(batch).to(device, non_blocking=True)
+                reconstructed = model(batch).to(device, non_blocking=True)
 
                 loss = loss_function(reconstructed, batch)
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
-                
+
             train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 
-            encoder.eval()
-            condition.eval()
-            decoder.eval()
-
+            model.eval()
             for batch in tqdm(val_batches):
                 batch = batch.to(device, non_blocking=True)
-                latent = encoder(batch).to(device, non_blocking=True)
-                output = decoder(latent).to(device, non_blocking=True)
+                output = model(batch).to(device, non_blocking=True)
                 loss = loss_function(output, batch)
                 val_loss += loss.item()
 
@@ -295,7 +272,7 @@ if __name__ == "__main__":
         visualizer.save_figure(history_img)
         torch.save(model.state_dict(), model_file_path)
         com.logger.info("save_model -> {}".format(model_file_path))
- """
+
         del train_data, train_batches, val_batches
         import gc
         gc.collect()
