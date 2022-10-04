@@ -16,11 +16,10 @@ import torch.nn as nn
 #########################################################################
 # pytorch model
 #########################################################################
-class Encoder(nn.moduel):
-    def __init__(self, paramF, paramM):
-        super(Encoder, self).__init__()
+class Net(nn.Module):
+    def __init__(self, paramF, paramM, classNum):
+        super(Net, self).__init__()
 
-        # Encoder (E)
         self.encoder = nn.Sequential(
             #nn.Flatten(),
 
@@ -41,29 +40,8 @@ class Encoder(nn.moduel):
             nn.BatchNorm1d(16),
             nn.ReLU()
         )
-    
-    def foward(self, x):
-        return self.encoder(x)
 
-class Condition(nn.Module):
-    def __init__(self, classNum):
-        super(Condition, self).__init__()
-
-        # Conditioning (Hr, Hb)
-        # Hadamard Product
-        self.condition = nn.Sequential(
-            nn.Linear(classNum, 16),
-            nn.Sigmoid(),
-            nn.Linear(16, 16),
-        )
-
-    def forward(self, x): 
-        labeled_latent = self.condition(x)
-        return labeled_latent
-
-class Decoder(nn.Module):
-    def __init__(self, paramF, paramM):
-        super(Decoder, self).__init__()
+        self.condition = FiLMLayer(classNum)
 
         self.decoder = nn.Sequential(
             nn.Linear(16, 128),
@@ -85,12 +63,30 @@ class Decoder(nn.Module):
             nn.Linear(128, paramF * paramM)
         )
 
-        #self.reshape = Reshape((paramF, paramM))
+    def forward(self, x, label):
+        latent = self.encoder(x)
+        cond_latent = self.condition(label, latent)
+        reconstructed = self.decoder(cond_latent)
+        
+        return reconstructed
 
-    def foward(self, x):
-        decoded = self.decoder(x)
-        #output = self.reshape(decoded)
-        return decoded
+class FiLMLayer(nn.Module):
+    def __init__(self, classNum):
+        super(Condition, self).__init__()
+
+        # Conditioning (Hr, Hb)
+        # Hadamard Product
+        self.condition = nn.Sequential(
+            nn.Linear(classNum, 16),
+            nn.Sigmoid()
+        )
+
+    def forward(self, label, latent): 
+        Hb = self.condition(label)
+        Hr = self.condition(label)
+
+        cond_latent = latent * Hr + Hb
+        return cond_latent
 
 # Reshape Layer
 class Reshape(nn.Module): 
