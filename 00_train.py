@@ -215,19 +215,17 @@ if __name__ == "__main__":
         paramM = param["feature"]["idcae"]["n_mels"]
 
         model = Net(paramF=paramF, paramM=paramM, classNum=classNum)
-
-        encoder.double()
-        condition.double()
-        decoder.double()
+        model.double()
+        
         '''
         1. Dataset input to model
         2. Define optimizer and loss
         3. Validation
         '''  
-        # loss_function = nn.CrossEntropyLoss()
+
         loss_function = nn.MSELoss()
 
-        optimizer = torch.optim.Adam(encoder.parameters(), lr=0.01)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
         epochs = int(param["fit"]["idcae"]["epochs"])
         batch_size = int(param["fit"]["idcae"]["batch_size"])
@@ -244,9 +242,7 @@ if __name__ == "__main__":
         val_loss_list = []
 
         device = torch.device('cuda')
-        encoder = encoder.to(device=device, dtype=torch.double)
-        condition = condition.to(device=device, dtype=torch.double)
-        decoder = decoder.to(device=device, dtype=torch.double)
+        model = model.to(device=device, dtype=torch.double)
 
         # FIXME: encoder condition decoder training
         """ for epoch in range(1, epochs+1):

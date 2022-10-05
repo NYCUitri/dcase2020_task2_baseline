@@ -178,11 +178,11 @@ def select_dirs(param, mode):
     """
     if mode:
         logger.info("load_directory <- development")
-        dir_path = os.path.abspath("{base}/*".format(base=param["dev_directory"]))
+        dir_path = os.path.abspath("{base}/*".format(base=param["dev_directory"]["idcae"]))
         dirs = sorted(glob.glob(dir_path))
     else:
         logger.info("load_directory <- evaluation")
-        dir_path = os.path.abspath("{base}/*".format(base=param["eval_directory"]))
+        dir_path = os.path.abspath("{base}/*".format(base=param["eval_directory"]["idcae"]))
         dirs = sorted(glob.glob(dir_path))
     return dirs
 
