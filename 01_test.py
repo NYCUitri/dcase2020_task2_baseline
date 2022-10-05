@@ -187,7 +187,7 @@ if __name__ == "__main__":
             com.logger.error("{} model not found ".format(machine_type))
             sys.exit(-1)
 
-        inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
+        inputDim = param["feature"]["baseline"]["n_mels"] * param["feature"]["baseline"]["frames"]
         model = Net(inputDim=inputDim)
         model.load_state_dict(torch.load(model_file))
         
@@ -219,11 +219,11 @@ if __name__ == "__main__":
             for file_idx, file_path in tqdm(enumerate(test_files), total=len(test_files)):
                 #try:
                 data = com.file_to_vector_array(file_path,
-                                                n_mels=param["feature"]["n_mels"],
-                                                frames=param["feature"]["frames"],
-                                                n_fft=param["feature"]["n_fft"],
-                                                hop_length=param["feature"]["hop_length"],
-                                                power=param["feature"]["power"])
+                                                n_mels=param["feature"]["baseline"]["n_mels"],
+                                                frames=param["feature"]["baseline"]["frames"],
+                                                n_fft=param["feature"]["baseline"]["n_fft"],
+                                                hop_length=param["feature"]["baseline"]["hop_length"],
+                                                power=param["feature"]["baseline"]["power"])
 
                 '''
                 change: testing

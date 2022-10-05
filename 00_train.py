@@ -194,11 +194,11 @@ if __name__ == "__main__":
         files = file_list_generator(target_dir)
         train_data = list_to_vector_array(files,
                                           msg="generate train_dataset",
-                                          n_mels=param["feature"]["n_mels"],
-                                          frames=param["feature"]["frames"],
-                                          n_fft=param["feature"]["n_fft"],
-                                          hop_length=param["feature"]["hop_length"],
-                                          power=param["feature"]["power"])
+                                          n_mels=param["feature"]["baseline"]["n_mels"],
+                                          frames=param["feature"]["baseline"]["frames"],
+                                          n_fft=param["feature"]["baseline"]["n_fft"],
+                                          hop_length=param["feature"]["baseline"]["hop_length"],
+                                          power=param["feature"]["baseline"]["power"])
 
         # train model
         print("============== MODEL TRAINING ==============")
@@ -209,7 +209,7 @@ if __name__ == "__main__":
         from torch.utils.data import DataLoader, random_split
         from pytorch_model import Net
         ########################################################################################
-        inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
+        inputDim = param["feature"]["baseline"]["n_mels"] * param["feature"]["baseline"]["frames"]
         model = Net(inputDim)
         model.double()
         '''
@@ -220,18 +220,18 @@ if __name__ == "__main__":
 
         loss_function = nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-        epochs = int(param["fit"]["epochs"])
-        batch_size = int(param["fit"]["batch_size"])
+        epochs = int(param["fit"]["baseline"]["epochs"])
+        batch_size = int(param["fit"]["baseline"]["batch_size"])
 
         #data_size = len(train_data) if len(train_data) < 1500 * batch_size else 1500 * batch_size
         #train_data = train_data[:data_size]
-        val_split = param["fit"]["validation_split"]
+        val_split = param["fit"]["baseline"]["validation_split"]
         val_size = int(len(train_data) * val_split)
         train_size = len(train_data) - val_size
 
         train_dataset, valid_dataset = random_split(train_data, [train_size, val_size])
-        train_batches = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
-        val_batches = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
+        train_batches = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+        val_batches = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=True)
 
         train_loss_list = []
         val_loss_list = []
