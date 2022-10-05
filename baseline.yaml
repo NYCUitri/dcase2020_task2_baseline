@@ -2,10 +2,10 @@ dev_directory : ./dev_data
 eval_directory : ./eval_data
 model_directory: 
   baseline: ./model
-  c2ae: ./model_c2ae
+  c2ae: ./model_idcae
 result_directory:
   baseline: ./result
-  c2ae: ./result_c2ae
+  c2ae: ./result_idcae
 result_file: result.csv
 
 max_fpr : 0.1

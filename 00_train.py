@@ -162,7 +162,7 @@ if __name__ == "__main__":
         sys.exit(-1)
         
     # make output directory
-    os.makedirs(param["model_directory"]["c2ae"], exist_ok=True)
+    os.makedirs(param["model_directory"]["idcae"], exist_ok=True)
 
     # initialize the visualizer
     visualizer = visualizer()
@@ -180,9 +180,9 @@ if __name__ == "__main__":
         model_file_path change to .pt
         '''
         machine_type = os.path.split(target_dir)[1]
-        model_file_path = "{model}/model_{machine_type}.pt".format(model=param["model_directory"]["c2ae"],
+        model_file_path = "{model}/model_{machine_type}.pt".format(model=param["model_directory"]["idcae"],
                                                                      machine_type=machine_type)
-        history_img = "{model}/history_{machine_type}.png".format(model=param["model_directory"]["c2ae"],
+        history_img = "{model}/history_{machine_type}.png".format(model=param["model_directory"]["idcae"],
                                                                   machine_type=machine_type)
 
         # if os.path.exists(model_file_path):
@@ -207,16 +207,14 @@ if __name__ == "__main__":
         import torch.nn as nn
         import torch
         from torch.utils.data import DataLoader, random_split
-        from pytorch_model import Encoder, Decoder, Condition
+        from pytorch_model import Net
         ########################################################################################
         classNum = 6
 
         paramF = param["feature"]["frames"]
         paramM = param["feature"]["n_mels"]
 
-        encoder = Encoder(paramF, paramM)
-        condition = Condition(classNum)
-        decoder = Decoder(paramF, paramM)
+        model = Net(paramF=paramF, paramM=paramM, classNum=classNum)
 
         encoder.double()
         condition.double()
@@ -229,8 +227,7 @@ if __name__ == "__main__":
         # loss_function = nn.CrossEntropyLoss()
         loss_function = nn.MSELoss()
 
-        en_optim = torch.optim.Adam(encoder.parameters(), lr=0.01)
-        de_optim = torch.optim.Adam(decoder.parameters(), lr=0.01)
+        optimizer = torch.optim.Adam(encoder.parameters(), lr=0.01)
 
         epochs = int(param["fit"]["epochs"])
         batch_size = int(param["fit"]["batch_size"])
