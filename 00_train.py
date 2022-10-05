@@ -104,8 +104,8 @@ def list_to_vector_array(file_list,
     dims = n_mels * frames
 
     # iterate file_to_vector_array()
-    #for idx in tqdm(range(len(file_list)), desc=msg):
-    for idx in range(len(file_list)):
+    for idx in tqdm(range(len(file_list)), desc=msg):
+    #for idx in range(len(file_list)):
         vector_array = com.file_to_vector_array(file_list[idx],
                                                 n_mels=n_mels,
                                                 frames=frames,
@@ -194,11 +194,11 @@ if __name__ == "__main__":
         files = file_list_generator(target_dir)
         train_data = list_to_vector_array(files,
                                           msg="generate train_dataset",
-                                          n_mels=param["feature"]["n_mels"],
-                                          frames=param["feature"]["frames"],
-                                          n_fft=param["feature"]["n_fft"],
-                                          hop_length=param["feature"]["hop_length"],
-                                          power=param["feature"]["power"])
+                                          n_mels=param["feature"]["idcae"]["n_mels"],
+                                          frames=param["feature"]["idcae"]["frames"],
+                                          n_fft=param["feature"]["idcae"]["n_fft"],
+                                          hop_length=param["feature"]["idcae"]["hop_length"],
+                                          power=param["feature"]["idcae"]["power"])
 
         # train model
         print("============== MODEL TRAINING ==============")
@@ -211,8 +211,8 @@ if __name__ == "__main__":
         ########################################################################################
         classNum = 6
 
-        paramF = param["feature"]["frames"]
-        paramM = param["feature"]["n_mels"]
+        paramF = param["feature"]["idcae"]["frames"]
+        paramM = param["feature"]["idcae"]["n_mels"]
 
         model = Net(paramF=paramF, paramM=paramM, classNum=classNum)
 
@@ -229,16 +229,16 @@ if __name__ == "__main__":
 
         optimizer = torch.optim.Adam(encoder.parameters(), lr=0.01)
 
-        epochs = int(param["fit"]["epochs"])
-        batch_size = int(param["fit"]["batch_size"])
+        epochs = int(param["fit"]["idcae"]["epochs"])
+        batch_size = int(param["fit"]["idcae"]["batch_size"])
 
-        val_split = param["fit"]["validation_split"]
+        val_split = param["fit"]["idcae"]["validation_split"]
         val_size = int(len(train_data) * val_split)
         train_size = len(train_data) - val_size
 
         train_dataset, valid_dataset = random_split(train_data, [train_size, val_size])
-        train_batches = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
-        val_batches = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=param["fit"]["shuffle"])
+        train_batches = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+        val_batches = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=True)
 
         train_loss_list = []
         val_loss_list = []

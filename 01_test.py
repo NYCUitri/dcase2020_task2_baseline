@@ -186,8 +186,8 @@ if __name__ == "__main__":
             com.logger.error("{} model not found ".format(machine_type))
             sys.exit(-1)
 
-        paramF = param["feature"]["frames"]
-        paramM = param["feature"]["n_mels"]
+        paramF = param["feature"]["idcae"]["frames"]
+        paramM = param["feature"]["idcae"]["n_mels"]
         
         encoder = Encoder(paramF, paramM)
         decoder = Decoder(paramF, paramM)
@@ -223,11 +223,11 @@ if __name__ == "__main__":
             for file_idx, file_path in tqdm(enumerate(test_files), total=len(test_files)):
                 #try:
                 data = com.file_to_vector_array(file_path,
-                                                n_mels=param["feature"]["n_mels"],
-                                                frames=param["feature"]["frames"],
-                                                n_fft=param["feature"]["n_fft"],
-                                                hop_length=param["feature"]["hop_length"],
-                                                power=param["feature"]["power"])
+                                                n_mels=param["feature"]["idcae"]["n_mels"],
+                                                frames=param["feature"]["idcae"]["frames"],
+                                                n_fft=param["feature"]["idcae"]["n_fft"],
+                                                hop_length=param["feature"]["idcae"]["hop_length"],
+                                                power=param["feature"]["idcae"]["power"])
 
                 '''
                 change: testing

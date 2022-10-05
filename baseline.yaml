@@ -2,28 +2,35 @@ dev_directory : ./dev_data
 eval_directory : ./eval_data
 model_directory: 
   baseline: ./model
-  c2ae: ./model_idcae
+  idcae: ./model_idcae
 result_directory:
   baseline: ./result
-  c2ae: ./result_idcae
+  idcae: ./result_idcae
 result_file: result.csv
 
 max_fpr : 0.1
 
 feature:
-  n_mels: 128
-  frames : 5
-  n_fft: 1024
-  hop_length: 512
-  power: 2.0
+  baseline:
+    n_mels: 128
+    frames : 5
+    n_fft: 1024
+    hop_length: 512
+    power: 2.0
+  idcae:
+    n_mels: 128
+    frames: 10
+    n_fft: 1024
+    hop_length: 512
+    power: 2.0
 
 
 fit:
-  compile:
-    optimizer : adam
-    loss : mean_squared_error
-  epochs : 100
-  batch_size : 32
-  shuffle : True
-  validation_split : 0.1
-  verbose : 1
+  baseline:
+    epochs : 100
+    batch_size : 512
+    validation_split : 0.1
+  idcae:
+    epochs: 100
+    batch_size: 300
+    validation_split: 0.1
