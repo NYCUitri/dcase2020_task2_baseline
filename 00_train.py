@@ -18,6 +18,7 @@ import sys
 # import additional python-library
 ########################################################################
 import numpy
+from sklearn.metrics import accuracy_score
 # from import
 from tqdm import tqdm
 # original lib
@@ -203,13 +204,21 @@ if __name__ == "__main__":
         import torch.nn as nn
         import torch
         from torch.utils.data import DataLoader, random_split
-        from pytorch_model import Net
+        from pytorch_model import Conditioning, Net
         ########################################################################################
         inputDim = param["feature"]["n_mels"] * param["feature"]["frames"]
         paramF = param["feature"]["frames"]
         paramM = param["feature"]["n_mels"]
+        print("F, M", paramF, paramM)
+        # exit(0)
 
-        model = Net(inputDim, paramF, paramM)
+        # data_train, label_batch = param["batch_size"]
+
+        # FIXME: params (self, inputDim, x, y, is_train, reuse)
+        model = Net(inputDim)
+        # D = Decoder(E)
+
+        # model = Net(inputDim, paramF, paramM)
         model.double()
         '''
         1. Dataset input to model
@@ -217,7 +226,8 @@ if __name__ == "__main__":
         3. Validation
         '''  
         # loss_function = nn.CrossEntropyLoss()
-        loss_function = nn.MSELoss()
+        # loss_function = nn.MSELoss()
+        loss_function = pytorch_model.Calculate_Loss()
 
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
         epochs = int(param["fit"]["epochs"])
@@ -234,7 +244,8 @@ if __name__ == "__main__":
         train_loss_list = []
         val_loss_list = []
 
-        device = torch.device('cuda')
+        # device = torch.device('cuda')
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device=device, dtype=torch.double)
 
         for epoch in range(1, epochs+1):
@@ -252,7 +263,11 @@ if __name__ == "__main__":
                 # print("\n\nreconstructed", output.size())
                 # print("batch", batch.size())
 
-                loss = loss_function(reconstructed, batch)
+                # loss = loss_function(reconstructed, batch)
+
+                # FIXME: Calculate_Loss(x, y, ypred, C, alpha) -> four params
+                loss, accuracy = loss_function(reconstructed, batch)
+
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
@@ -274,5 +289,5 @@ if __name__ == "__main__":
         
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)
-        torch.save(model.stat_dict(), model_file_path)
+        torch.save(model.state_dict(), model)
         com.logger.info("save_model -> {}".format(model_file_path))
