@@ -118,6 +118,13 @@ def list_to_vector_array(file_list,
 
     return dataset
 
+def label_generator(file_list, class_num):
+    label = numpy.zeros()
+    for idx in tqdm(range(len(file_list))):
+        file_path = file_list[idx]
+        file_path_split = file_path.split('_')
+        machine_id = int(file_path_split[2])
+        
 
 def file_list_generator(target_dir,
                         dir_name="train",
@@ -209,7 +216,7 @@ if __name__ == "__main__":
         from torch.utils.data import DataLoader, random_split
         from pytorch_model import Net
         ########################################################################################
-        classNum = 6
+        classNum = 7
 
         paramF = param["feature"]["idcae"]["frames"]
         paramM = param["feature"]["idcae"]["n_mels"]
