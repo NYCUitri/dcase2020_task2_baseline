@@ -104,8 +104,8 @@ def list_to_vector_array(file_list,
     dims = n_mels * frames
 
     # iterate file_to_vector_array()
-    #for idx in tqdm(range(len(file_list)), desc=msg):
-    for idx in range(len(file_list)):
+    for idx in tqdm(range(len(file_list)), desc=msg):
+    #for idx in range(len(file_list)):
         vector_array = com.file_to_vector_array(file_list[idx],
                                                 n_mels=n_mels,
                                                 frames=frames,
@@ -142,7 +142,7 @@ def file_list_generator(target_dir,
     if len(files) == 0:
         com.logger.exception("no_wav_file!!")
 
-    file_num = int(len(files) / 2) if len(files) > 2000 else len(files)
+    file_num = int(2 * len(files) / 5) if len(files) > 2000 else len(files)
     random.shuffle(files)
     files = files[:file_num]
     com.logger.info("train_file num : {num}".format(num=len(files)))
@@ -231,6 +231,7 @@ if __name__ == "__main__":
 
         train_dataset, valid_dataset = random_split(train_data, [train_size, val_size])
         train_batches = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+        #print(len(train_batches))
         val_batches = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=True)
 
         train_loss_list = []
@@ -238,6 +239,7 @@ if __name__ == "__main__":
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model = model.to(device=device, dtype=torch.double, non_blocking=True)
+        print("2")
 
         for epoch in range(1, epochs+1):
             train_loss = 0.0
