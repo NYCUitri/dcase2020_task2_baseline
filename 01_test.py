@@ -51,10 +51,10 @@ def save_csv(save_file_path,
         writer.writerows(save_data)
 
 
-def get_machine_id_list_for_test(target_dir,
+""" def get_machine_id_list_for_test(target_dir,
                                  dir_name="test",
                                  ext="wav"):
-    """
+    '''
     target_dir : str
         base directory path of "dev_data" or "eval_data"
     test_dir_name : str (default="test")
@@ -65,14 +65,14 @@ def get_machine_id_list_for_test(target_dir,
     return :
         machine_id_list : list [ str ]
             list of machine IDs extracted from the names of test files
-    """
+    '''
     # create test files
     dir_path = os.path.abspath("{dir}/{dir_name}/*.{ext}".format(dir=target_dir, dir_name=dir_name, ext=ext))
     file_paths = sorted(glob.glob(dir_path))
     # extract id
     machine_id_list = sorted(list(set(itertools.chain.from_iterable(
         [re.findall('id_[0-9][0-9]', ext_id) for ext_id in file_paths]))))
-    return machine_id_list
+    return machine_id_list """
 
 
 def test_file_list_generator(target_dir,
@@ -205,11 +205,11 @@ if __name__ == "__main__":
             csv_lines.append(["id", "AUC", "pAUC"])
             performance = []
 
-        machine_id_list = get_machine_id_list_for_test(target_dir)
+        machine_id_list = com.get_machine_id_list(target_dir)
 
         for id_str in machine_id_list:
             # load test file
-            test_files, y_true = test_file_list_generator(target_dir, id_str)
+            test_files, y_true = test_file_list_generator(target_dir, id_str, dir_name="test")
 
             # setup anomaly score file path
             anomaly_score_csv = "{result}/anomaly_score_{machine_type}_{id_str}.csv".format(

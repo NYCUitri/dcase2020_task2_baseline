@@ -117,15 +117,8 @@ def list_to_vector_array(file_list,
         dataset[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
 
     return dataset
-
-def label_generator(file_list, class_num):
-    label = numpy.zeros()
-    for idx in tqdm(range(len(file_list))):
-        file_path = file_list[idx]
-        file_path_split = file_path.split('_')
-        machine_id = int(file_path_split[2])
         
-
+'''
 def file_list_generator(target_dir,
                         dir_name="train",
                         ext="wav"):
@@ -154,6 +147,77 @@ def file_list_generator(target_dir,
     files = files[:file_num]
     com.logger.info("train_file num : {num}".format(num=len(files)))
     return files
+'''
+
+def file_list_generator(target_dir,
+                             id_name,
+                             cls_label,
+                             cls_num,
+                             dir_name="train",
+                             prefix_normal="normal",
+                             ext="wav",):
+    """
+    target_dir : str
+        base directory path of the dev_data or eval_data
+    id_name : str
+        id of wav file in <<test_dir_name>> directory
+    dir_name : str (default="test")
+        directory containing test data
+    prefix_normal : str (default="normal")
+        normal directory name
+    prefix_anomaly : str (default="anomaly")
+        anomaly directory name
+    ext : str (default="wav")
+        file extension of audio files
+
+    return :
+        if the mode is "development":
+            test_files : list [ str ]
+                file list for test
+            test_labels : list [ boolean ]
+                label info. list for test
+                * normal/anomaly = 0/1
+        if the mode is "evaluation":
+            test_files : list [ str ]
+                file list for test
+    """
+    com.logger.info("target_dir : {}".format(target_dir+"_"+id_name))
+
+    # development
+    #if mode:
+    files = sorted(
+        glob.glob("{dir}/{dir_name}/{prefix_normal}_{id_name}*.{ext}".format(dir=target_dir,
+                                                                                dir_name=dir_name,
+                                                                                prefix_normal=prefix_normal,
+                                                                                id_name=id_name,
+                                                                                ext=ext)))
+    labels = numpy.ones(shape=(len(files), cls_num))
+    for i in range(labels.shape[0]):
+        for j in range(labels.shape[1]):
+            if i != j:
+                labels[i][j] = -1
+                
+    # files = numpy.concatenate((normal_files, anomaly_files), axis=0)
+    # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
+    com.logger.info("train_file  num : {num}".format(num=len(files)))
+    if len(files) == 0:
+        com.logger.exception("no_wav_file!!")
+    print("\n========================================")
+
+    """ # evaluation
+    else:
+        files = sorted(
+            glob.glob("{dir}/{dir_name}/*{id_name}*.{ext}".format(dir=target_dir,
+                                                                  dir_name=dir_name,
+                                                                  id_name=id_name,
+                                                                  ext=ext)))
+        labels = None
+        com.logger.info("test_file  num : {num}".format(num=len(files)))
+        if len(files) == 0:
+            com.logger.exception("no_wav_file!!")
+        print("\n=========================================") """
+
+    return files, labels
 ########################################################################
 
 
@@ -186,6 +250,7 @@ if __name__ == "__main__":
         '''
         model_file_path change to .pt
         '''
+        
         machine_type = os.path.split(target_dir)[1]
         model_file_path = "{model}/model_{machine_type}.pt".format(model=param["model_directory"]["idcae"],
                                                                      machine_type=machine_type)
@@ -198,8 +263,12 @@ if __name__ == "__main__":
 
         # generate dataset
         print("============== DATASET_GENERATOR ==============")
-        files = file_list_generator(target_dir)
-        train_data = list_to_vector_array(files,
+        machine_id_list = com.get_machine_id_list(target_dir, dir_name="train")
+
+        for i in range(len(machine_id_list)):
+            files = file_list_generator(target_dir)
+
+            train_data = list_to_vector_array(files,
                                           msg="generate train_dataset",
                                           n_mels=param["feature"]["idcae"]["n_mels"],
                                           frames=param["feature"]["idcae"]["frames"],
