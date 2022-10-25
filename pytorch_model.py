@@ -72,7 +72,7 @@ class Net(nn.Module):
 
 class FiLMLayer(nn.Module):
     def __init__(self, classNum):
-        super(Condition, self).__init__()
+        super(FiLMLayer, self).__init__()
 
         # Conditioning (Hr, Hb)
         # Hadamard Product
@@ -97,3 +97,4 @@ class Reshape(nn.Module):
     def forward(self, x):
         # return x.view(self.shape)
         return x.view(-1, self.shape[0], self.shape[1])
+

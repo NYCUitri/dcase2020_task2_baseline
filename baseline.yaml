@@ -19,7 +19,7 @@ feature:
     power: 2.0
   idcae:
     n_mels: 128
-    frames: 10
+    frames: 5
     n_fft: 1024
     hop_length: 512
     power: 2.0

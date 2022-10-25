@@ -17,7 +17,7 @@ import sys
 ########################################################################
 # import additional python-library
 ########################################################################
-import numpy
+import numpy as np
 # from import
 from tqdm import tqdm
 # original lib
@@ -80,12 +80,14 @@ class visualizer(object):
 
 
 def list_to_vector_array(file_list,
-                         msg="calc...",
-                         n_mels=64,
-                         frames=5,
-                         n_fft=1024,
-                         hop_length=512,
-                         power=2.0):
+                        cls_label,
+                        cls_num,
+                        msg="calc...",
+                        n_mels=64,
+                        frames=5,
+                        n_fft=1024,
+                        hop_length=512,
+                        power=2.0):
     """
     convert the file_list to a vector array.
     file_to_vector_array() is iterated, and the output vector array is concatenated.
@@ -112,11 +114,26 @@ def list_to_vector_array(file_list,
                                                 n_fft=n_fft,
                                                 hop_length=hop_length,
                                                 power=power)
+
+        data = vector_array.flatten()
+        mean = np.mean(data)
+        std = np.std(data, dtype=np.float32)
+
+        vector_array = (vector_array - mean) / std
+
         if idx == 0:
-            dataset = numpy.zeros((vector_array.shape[0] * len(file_list), dims), float)
+            dataset = np.zeros((vector_array.shape[0] * len(file_list), dims), dtype=np.float16)
         dataset[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
 
-    return dataset
+    label = np.ones((vector_array.shape[0] * len(file_list), cls_num))
+
+    for i in range(len(label)):
+        for j in range(cls_num):
+            if j != cls_label:
+                label[i][j] = -1
+
+    #print(label)
+    return dataset, label
         
 '''
 def file_list_generator(target_dir,
@@ -151,11 +168,9 @@ def file_list_generator(target_dir,
 
 def file_list_generator(target_dir,
                              id_name,
-                             cls_label,
-                             cls_num,
                              dir_name="train",
                              prefix_normal="normal",
-                             ext="wav",):
+                             ext="wav"):
     """
     target_dir : str
         base directory path of the dev_data or eval_data
@@ -165,21 +180,9 @@ def file_list_generator(target_dir,
         directory containing test data
     prefix_normal : str (default="normal")
         normal directory name
-    prefix_anomaly : str (default="anomaly")
-        anomaly directory name
     ext : str (default="wav")
         file extension of audio files
 
-    return :
-        if the mode is "development":
-            test_files : list [ str ]
-                file list for test
-            test_labels : list [ boolean ]
-                label info. list for test
-                * normal/anomaly = 0/1
-        if the mode is "evaluation":
-            test_files : list [ str ]
-                file list for test
     """
     com.logger.info("target_dir : {}".format(target_dir+"_"+id_name))
 
@@ -191,12 +194,7 @@ def file_list_generator(target_dir,
                                                                                 prefix_normal=prefix_normal,
                                                                                 id_name=id_name,
                                                                                 ext=ext)))
-    labels = numpy.ones(shape=(len(files), cls_num))
-    for i in range(labels.shape[0]):
-        for j in range(labels.shape[1]):
-            if i != j:
-                labels[i][j] = -1
-                
+
     # files = numpy.concatenate((normal_files, anomaly_files), axis=0)
     # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
     com.logger.info("train_file  num : {num}".format(num=len(files)))
@@ -204,20 +202,7 @@ def file_list_generator(target_dir,
         com.logger.exception("no_wav_file!!")
     print("\n========================================")
 
-    """ # evaluation
-    else:
-        files = sorted(
-            glob.glob("{dir}/{dir_name}/*{id_name}*.{ext}".format(dir=target_dir,
-                                                                  dir_name=dir_name,
-                                                                  id_name=id_name,
-                                                                  ext=ext)))
-        labels = None
-        com.logger.info("test_file  num : {num}".format(num=len(files)))
-        if len(files) == 0:
-            com.logger.exception("no_wav_file!!")
-        print("\n=========================================") """
-
-    return files, labels
+    return files
 ########################################################################
 
 
@@ -257,25 +242,35 @@ if __name__ == "__main__":
         history_img = "{model}/history_{machine_type}.png".format(model=param["model_directory"]["idcae"],
                                                                   machine_type=machine_type)
 
-        # if os.path.exists(model_file_path):
-        #     com.logger.info("model exists")
-        #     continue
+        if os.path.exists(model_file_path):
+            com.logger.info("model exists")
+            continue
 
         # generate dataset
         print("============== DATASET_GENERATOR ==============")
+
         machine_id_list = com.get_machine_id_list(target_dir, dir_name="train")
 
         for i in range(len(machine_id_list)):
-            files = file_list_generator(target_dir)
+            files = file_list_generator(target_dir, machine_id_list[i])
 
-            train_data = list_to_vector_array(files,
-                                          msg="generate train_dataset",
-                                          n_mels=param["feature"]["idcae"]["n_mels"],
-                                          frames=param["feature"]["idcae"]["frames"],
-                                          n_fft=param["feature"]["idcae"]["n_fft"],
-                                          hop_length=param["feature"]["idcae"]["hop_length"],
-                                          power=param["feature"]["idcae"]["power"])
+            data, label = list_to_vector_array(files,
+                                        cls_label=i,
+                                        cls_num=len(machine_id_list),
+                                        msg="generate train_dataset",
+                                        n_mels=param["feature"]["idcae"]["n_mels"],
+                                        frames=param["feature"]["idcae"]["frames"],
+                                        n_fft=param["feature"]["idcae"]["n_fft"],
+                                        hop_length=param["feature"]["idcae"]["hop_length"],
+                                        power=param["feature"]["idcae"]["power"])
 
+            if i == 0:
+                train_data = data
+                train_label = label
+            else:
+                train_data = np.concatenate((train_data, data), axis=0)
+                train_label = np.concatenate((train_label, label), axis=0)
+        
         # train model
         print("============== MODEL TRAINING ==============")
         ########################################################################################
@@ -285,12 +280,11 @@ if __name__ == "__main__":
         from torch.utils.data import DataLoader, random_split
         from pytorch_model import Net
         ########################################################################################
-        classNum = 7
 
         paramF = param["feature"]["idcae"]["frames"]
         paramM = param["feature"]["idcae"]["n_mels"]
 
-        model = Net(paramF=paramF, paramM=paramM, classNum=classNum)
+        model = Net(paramF=paramF, paramM=paramM, classNum=len(machine_id_list))
         model.double()
         
         '''

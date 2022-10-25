@@ -148,7 +148,11 @@ def file_to_vector_array(file_name,
 
     # 03 convert melspectrogram to log mel energy
     log_mel_spectrogram = 20.0 / power * numpy.log10(mel_spectrogram + sys.float_info.epsilon)
+    log_mel_spectrogram = log_mel_spectrogram.astype("float16")
 
+    # 03-1 convert to db unit
+    #log_mel_spectrogram = librosa.power_to_db(mel_spectrogram)
+    
     # 04 calculate total vector size
     vector_array_size = len(log_mel_spectrogram[0, :]) - frames + 1
 
@@ -157,7 +161,8 @@ def file_to_vector_array(file_name,
         return numpy.empty((0, dims))
 
     # 06 generate feature vectors by concatenating multiframes
-    vector_array = numpy.zeros((vector_array_size, dims))
+
+    vector_array = numpy.zeros((vector_array_size, dims), dtype=numpy.float16)
     for t in range(frames):
         vector_array[:, n_mels * t: n_mels * (t + 1)] = log_mel_spectrogram[:, t: t + vector_array_size].T
 
