@@ -65,10 +65,11 @@ class Net(nn.Module):
 
     def forward(self, x, label):
         latent = self.encoder(x)
-        cond_latent = self.condition(label, latent)
-        reconstructed = self.decoder(cond_latent)
+        m_cond_latent = self.condition(label, latent)
+        m_output = self.decoder(m_cond_latent)
         
-        return reconstructed
+        
+        return m_output
 
 class FiLMLayer(nn.Module):
     def __init__(self, classNum):
@@ -98,3 +99,18 @@ class Reshape(nn.Module):
         # return x.view(self.shape)
         return x.view(-1, self.shape[0], self.shape[1])
 
+
+##############################################################
+# Loss Function
+import numpy as np
+##############################################################
+class CustomLoss(nn.Module):
+    def __init__(self, alpha, C, n_mels):
+        super(CustomLoss, self).__init__()
+        
+        self.alpha = alpha
+        self.const_vector = np.empty(n_mels)
+        self.const_vector.fill(C)
+
+    def forward(self, m_output, nm_output, input):
+        pass

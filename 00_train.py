@@ -23,7 +23,7 @@ from tqdm import tqdm
 # original lib
 import common as com
 import pytorch_model
-import random
+from Dataset import MelDataLoader
 ########################################################################
 
 
@@ -122,18 +122,19 @@ def list_to_vector_array(file_list,
         vector_array = (vector_array - mean) / std
 
         if idx == 0:
-            dataset = np.zeros((vector_array.shape[0] * len(file_list), dims), dtype=np.float16)
-        dataset[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
+            features = np.zeros((vector_array.shape[0] * len(file_list), dims), dtype=np.float16)
+        features[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
 
-    label = np.ones((vector_array.shape[0] * len(file_list), cls_num))
+    label = np.zeros((vector_array.shape[0] * len(file_list), cls_num))
 
     for i in range(len(label)):
         for j in range(cls_num):
-            if j != cls_label:
-                label[i][j] = -1
+            if j == cls_label:
+                label[i][j] = 1
 
     #print(label)
-    return dataset, label
+    dataset = [[features[i], label[i]] for i in range(len(label))]
+    return dataset
         
 '''
 def file_list_generator(target_dir,
@@ -254,7 +255,7 @@ if __name__ == "__main__":
         for i in range(len(machine_id_list)):
             files = file_list_generator(target_dir, machine_id_list[i])
 
-            data, label = list_to_vector_array(files,
+            sub_dataset = list_to_vector_array(files,
                                         cls_label=i,
                                         cls_num=len(machine_id_list),
                                         msg="generate train_dataset",
@@ -264,12 +265,11 @@ if __name__ == "__main__":
                                         hop_length=param["feature"]["idcae"]["hop_length"],
                                         power=param["feature"]["idcae"]["power"])
 
+
             if i == 0:
-                train_data = data
-                train_label = label
+                dataset = sub_dataset
             else:
-                train_data = np.concatenate((train_data, data), axis=0)
-                train_label = np.concatenate((train_label, label), axis=0)
+                dataset = np.concatenate((dataset, sub_dataset), axis=0)
         
         # train model
         print("============== MODEL TRAINING ==============")
@@ -277,7 +277,7 @@ if __name__ == "__main__":
         # pytorch
         import torch.nn as nn
         import torch
-        from torch.utils.data import DataLoader, random_split
+        from torch.utils.data import random_split, DataLoader
         from pytorch_model import Net
         ########################################################################################
 
@@ -301,38 +301,38 @@ if __name__ == "__main__":
         batch_size = int(param["fit"]["idcae"]["batch_size"])
 
         val_split = param["fit"]["idcae"]["validation_split"]
-        val_size = int(len(train_data) * val_split)
-        train_size = len(train_data) - val_size
+        val_size = int(len(dataset) * val_split)
+        train_size = len(dataset) - val_size
 
-        train_dataset, valid_dataset = random_split(train_data, [train_size, val_size])
-        train_batches = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-        val_batches = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=True)
+        train_dataset, valid_dataset = random_split(dataset, [train_size, val_size])
+        train_batches = DataLoader(dataset=MelDataLoader(train_dataset), batch_size=batch_size, shuffle=True)
+        val_batches = DataLoader(dataset=MelDataLoader(valid_dataset), batch_size=batch_size, shuffle=True)
 
         train_loss_list = []
         val_loss_list = []
 
         device = torch.device('cuda')
+        print("b")
         model = model.to(device=device, dtype=torch.double)
-
+        print("a")
         # FIXME: encoder condition decoder training
-        """ for epoch in range(1, epochs+1):
+        for epoch in range(1, epochs+1):
             train_loss = 0.0
             val_loss = 0.0
             print("Epoch: {}".format(epoch))
 
-            encoder.train()
-            condition.train()
-            decoder.train()
+            model.train()
 
             for batch in tqdm(train_batches):
                 optimizer.zero_grad()
-                batch = batch.to(device, non_blocking=True)
+                batch = batch.to(device, non_blocking=True, dtype=torch.double)
+                feature_batch, label_batch = batch
+                print(feature_batch.shape)
+                print(label_batch.shape)
                 
-                latent = encoder(batch).to(device, non_blocking=True)
-                labeled_latent = Condition(latent).to(device, non_blocking=True)
-                reconstructed = decoder(batch).to(device, non_blocking=True)
+                m_output, nm_output = model(feature_batch, label_batch).to(device, non_blocking=True, dtype=torch.double)
 
-                loss = loss_function(reconstructed, batch)
+                loss = loss_function(m_output, nm_output, batch)
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
@@ -340,9 +340,7 @@ if __name__ == "__main__":
             train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 
-            encoder.eval()
-            condition.eval()
-            decoder.eval()
+            model.eval()
 
             for batch in tqdm(val_batches):
                 batch = batch.to(device, non_blocking=True)
@@ -358,7 +356,7 @@ if __name__ == "__main__":
         visualizer.save_figure(history_img)
         torch.save(model.state_dict(), model_file_path)
         com.logger.info("save_model -> {}".format(model_file_path))
- """
-        del train_data, train_batches, val_batches
+
+        del dataset, train_batches, val_batches
         import gc
         gc.collect()
