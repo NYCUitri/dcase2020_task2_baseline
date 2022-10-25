@@ -313,7 +313,7 @@ if __name__ == "__main__":
 
         device = torch.device('cuda')
         print("b")
-        model = model.to(device=device, dtype=torch.double)
+        model = model.to(device=device, dtype=torch.float16)
         print("a")
         # FIXME: encoder condition decoder training
         for epoch in range(1, epochs+1):
@@ -330,7 +330,7 @@ if __name__ == "__main__":
                 print(feature_batch.shape)
                 print(label_batch.shape)
                 
-                m_output, nm_output = model(feature_batch, label_batch).to(device, non_blocking=True, dtype=torch.double)
+                m_output, nm_output = model(feature_batch, label_batch).to(device, non_blocking=True, dtype=torch.float16)
 
                 loss = loss_function(m_output, nm_output, batch)
                 loss.backward()
@@ -342,15 +342,16 @@ if __name__ == "__main__":
 
             model.eval()
 
-            for batch in tqdm(val_batches):
-                batch = batch.to(device, non_blocking=True)
-                latent = encoder(batch).to(device, non_blocking=True)
-                output = decoder(latent).to(device, non_blocking=True)
-                loss = loss_function(output, batch)
-                val_loss += loss.item()
+            with torch.no_grad():
+                for batch in tqdm(val_batches):
+                    batch = batch.to(device, non_blocking=True, dtype=torch.double)
+                    feature_batch, label_batch = batch
+                
+                    loss = loss_function(output, batch)
+                    val_loss += loss.item()
 
-            val_loss /= len(val_batches)
-            val_loss_list.append(val_loss)
+                val_loss /= len(val_batches)
+                val_loss_list.append(val_loss)
         
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)
