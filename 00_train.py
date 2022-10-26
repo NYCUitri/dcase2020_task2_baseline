@@ -11,6 +11,7 @@
 import os
 import glob
 import sys
+import gc
 ########################################################################
 
 
@@ -24,6 +25,7 @@ from tqdm import tqdm
 import common as com
 import pytorch_model
 from Dataset import MelDataLoader
+import random
 ########################################################################
 
 
@@ -116,7 +118,7 @@ def list_to_vector_array(file_list,
                                                 power=power)
 
         data = vector_array.flatten()
-        mean = np.mean(data)
+        mean = np.mean(data, dtype=np.float32)
         std = np.std(data, dtype=np.float32)
 
         vector_array = (vector_array - mean) / std
@@ -125,7 +127,10 @@ def list_to_vector_array(file_list,
             features = np.zeros((vector_array.shape[0] * len(file_list), dims), dtype=np.float16)
         features[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
 
-    label = np.zeros((vector_array.shape[0] * len(file_list), cls_num))
+        del vector_array
+        gc.collect()
+
+    label = np.zeros((features.shape[0], cls_num), dtype=np.float16)
 
     for i in range(len(label)):
         for j in range(cls_num):
@@ -198,6 +203,8 @@ def file_list_generator(target_dir,
 
     # files = numpy.concatenate((normal_files, anomaly_files), axis=0)
     # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
+    """ random.shuffle(files)
+    files = files[:500] """
     com.logger.info("train_file  num : {num}".format(num=len(files)))
     if len(files) == 0:
         com.logger.exception("no_wav_file!!")
@@ -268,8 +275,10 @@ if __name__ == "__main__":
 
             if i == 0:
                 dataset = sub_dataset
+                del sub_dataset
             else:
                 dataset = np.concatenate((dataset, sub_dataset), axis=0)
+                del sub_dataset
         
         # train model
         print("============== MODEL TRAINING ==============")
@@ -285,7 +294,7 @@ if __name__ == "__main__":
         paramM = param["feature"]["idcae"]["n_mels"]
 
         model = Net(paramF=paramF, paramM=paramM, classNum=len(machine_id_list))
-        model.double()
+        model.float()
         
         '''
         1. Dataset input to model
@@ -312,9 +321,8 @@ if __name__ == "__main__":
         val_loss_list = []
 
         device = torch.device('cuda')
-        print("b")
-        model = model.to(device=device, dtype=torch.float16)
-        print("a")
+        model = model.to(device=device, dtype=torch.float32)
+
         # FIXME: encoder condition decoder training
         for epoch in range(1, epochs+1):
             train_loss = 0.0
@@ -325,12 +333,12 @@ if __name__ == "__main__":
 
             for batch in tqdm(train_batches):
                 optimizer.zero_grad()
-                batch = batch.to(device, non_blocking=True, dtype=torch.double)
                 feature_batch, label_batch = batch
-                print(feature_batch.shape)
-                print(label_batch.shape)
+                #print(type(feature_batch))
+                feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
+                label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 
-                m_output, nm_output = model(feature_batch, label_batch).to(device, non_blocking=True, dtype=torch.float16)
+                m_output, nm_output = model(feature_batch, label_batch).to(device, non_blocking=True, dtype=torch.float32)
 
                 loss = loss_function(m_output, nm_output, batch)
                 loss.backward()
@@ -340,18 +348,19 @@ if __name__ == "__main__":
             train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 
-            model.eval()
+            """ model.eval()
 
             with torch.no_grad():
                 for batch in tqdm(val_batches):
-                    batch = batch.to(device, non_blocking=True, dtype=torch.double)
+                    batch = batch.to(device, non_blocking=True, dtype=torch.float16)
                     feature_batch, label_batch = batch
-                
-                    loss = loss_function(output, batch)
+                    
+                    m_output = model(feature_batch, label_batch)
+                    loss = loss_function(m_output, label_batch)
                     val_loss += loss.item()
 
                 val_loss /= len(val_batches)
-                val_loss_list.append(val_loss)
+                val_loss_list.append(val_loss) """
         
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)
@@ -359,5 +368,4 @@ if __name__ == "__main__":
         com.logger.info("save_model -> {}".format(model_file_path))
 
         del dataset, train_batches, val_batches
-        import gc
         gc.collect()

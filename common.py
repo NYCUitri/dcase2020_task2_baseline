@@ -148,7 +148,7 @@ def file_to_vector_array(file_name,
 
     # 03 convert melspectrogram to log mel energy
     log_mel_spectrogram = 20.0 / power * numpy.log10(mel_spectrogram + sys.float_info.epsilon)
-    log_mel_spectrogram = log_mel_spectrogram.astype("float16")
+    log_mel_spectrogram = log_mel_spectrogram.astype("float32")
 
     # 03-1 convert to db unit
     #log_mel_spectrogram = librosa.power_to_db(mel_spectrogram)
