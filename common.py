@@ -162,7 +162,7 @@ def file_to_vector_array(file_name,
 
     # 06 generate feature vectors by concatenating multiframes
 
-    vector_array = numpy.zeros((vector_array_size, dims), dtype=numpy.float16)
+    vector_array = numpy.zeros((vector_array_size, dims), dtype=numpy.float32)
     for t in range(frames):
         vector_array[:, n_mels * t: n_mels * (t + 1)] = log_mel_spectrogram[:, t: t + vector_array_size].T
 

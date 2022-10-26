@@ -122,15 +122,16 @@ def list_to_vector_array(file_list,
         std = np.std(data, dtype=np.float32)
 
         vector_array = (vector_array - mean) / std
+        #print(vector_array)
 
         if idx == 0:
-            features = np.zeros((vector_array.shape[0] * len(file_list), dims), dtype=np.float16)
+            features = np.zeros((vector_array.shape[0] * len(file_list), dims), dtype=np.float32)
         features[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
 
         del vector_array
         gc.collect()
 
-    label = np.zeros((features.shape[0], cls_num), dtype=np.float16)
+    label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
 
     for i in range(len(label)):
         for j in range(cls_num):
@@ -203,8 +204,8 @@ def file_list_generator(target_dir,
 
     # files = numpy.concatenate((normal_files, anomaly_files), axis=0)
     # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
-    """ random.shuffle(files)
-    files = files[:500] """
+    random.shuffle(files)
+    files = files[:600]
     com.logger.info("train_file  num : {num}".format(num=len(files)))
     if len(files) == 0:
         com.logger.exception("no_wav_file!!")
