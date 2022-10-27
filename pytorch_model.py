@@ -8,9 +8,9 @@
 ########################################################################
 # import python-library
 #########################################################################
-from multiprocessing.synchronize import Condition
 import torch
 import torch.nn as nn
+import random
 # from torch.autograd import Variable
 # from torchvision.datasets import CIFAR10
 #########################################################################
@@ -68,8 +68,15 @@ class Net(nn.Module):
         m_cond_latent = self.condition(label, latent)
         m_output = self.decoder(m_cond_latent)
         
+        nm_indices = [idx for idx in range(len(label)) if label[idx] == 0]
+        nm_label = np.zeros(shape=label.shape)
+        nm_idx = random.choice(nm_indices)
+        nm_label[nm_idx] = 1
+
+        nm_cond_latent = self.condition(nm_label, latent)
+        nm_output = self.decoder(nm_cond_latent)
         
-        return m_output
+        return m_output, nm_output
 
 class FiLMLayer(nn.Module):
     def __init__(self, classNum):
