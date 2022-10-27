@@ -302,8 +302,9 @@ if __name__ == "__main__":
         2. Define optimizer and loss
         3. Validation
         '''  
-
-        loss_function = nn.MSELoss()
+        # loss_function = nn.CrossEntropyLoss()
+        # loss_function = nn.MSELoss()
+        loss_function = pytorch_model.Calculate_Loss()
 
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
