@@ -205,7 +205,7 @@ def file_list_generator(target_dir,
     # files = numpy.concatenate((normal_files, anomaly_files), axis=0)
     # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
     random.shuffle(files)
-    files = files[:600]
+    files = files[:750]
     com.logger.info("train_file  num : {num}".format(num=len(files)))
     if len(files) == 0:
         com.logger.exception("no_wav_file!!")
