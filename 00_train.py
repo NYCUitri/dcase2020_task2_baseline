@@ -205,7 +205,8 @@ def file_list_generator(target_dir,
     # files = numpy.concatenate((normal_files, anomaly_files), axis=0)
     # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
     random.shuffle(files)
-    files = files[:750]
+    files = files[:500]
+    #files = files[:100]
     com.logger.info("train_file  num : {num}".format(num=len(files)))
     if len(files) == 0:
         com.logger.exception("no_wav_file!!")
@@ -288,11 +289,12 @@ if __name__ == "__main__":
         import torch.nn as nn
         import torch
         from torch.utils.data import random_split, DataLoader
-        from pytorch_model import Net
+        from pytorch_model import Net, CustomLoss
         ########################################################################################
 
         paramF = param["feature"]["idcae"]["frames"]
         paramM = param["feature"]["idcae"]["n_mels"]
+        dim = paramF * paramM
 
         model = Net(paramF=paramF, paramM=paramM, classNum=len(machine_id_list))
         model.float()
@@ -303,7 +305,7 @@ if __name__ == "__main__":
         3. Validation
         '''  
 
-        loss_function = nn.MSELoss()
+        loss_function = CustomLoss(alpha=0.75, C=5, dim=dim)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
@@ -332,36 +334,47 @@ if __name__ == "__main__":
 
             model.train()
 
-            for batch in tqdm(train_batches):
+            for feature_batch, label_batch in tqdm(train_batches):
                 optimizer.zero_grad()
-                feature_batch, label_batch = batch
                 #print(type(feature_batch))
                 feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 
-                m_output, nm_output = model(feature_batch, label_batch).to(device, non_blocking=True, dtype=torch.float32)
+                m_output, nm_output = model(feature_batch, label_batch)
+                m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
+                nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
 
-                loss = loss_function(m_output, nm_output, batch)
+                loss = loss_function(m_output, nm_output, feature_batch)
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
+
+                del m_output, nm_output, feature_batch, label_batch
+                gc.collect()
                 
             train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 
-            """ model.eval()
+            model.eval()
 
             with torch.no_grad():
-                for batch in tqdm(val_batches):
-                    batch = batch.to(device, non_blocking=True, dtype=torch.float16)
-                    feature_batch, label_batch = batch
+                for feature_batch, label_batch in tqdm(val_batches):
                     
-                    m_output = model(feature_batch, label_batch)
-                    loss = loss_function(m_output, label_batch)
+                    feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
+                    label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
+                    
+                    m_output, nm_output = model(feature_batch, label_batch)
+                    m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
+                    nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
+
+                    loss = loss_function(m_output, nm_output, feature_batch)
                     val_loss += loss.item()
 
+                    del m_output, nm_output, feature_batch, label_batch
+                    gc.collect()
+
                 val_loss /= len(val_batches)
-                val_loss_list.append(val_loss) """
+                val_loss_list.append(val_loss)
         
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)

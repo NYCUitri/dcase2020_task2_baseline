@@ -68,11 +68,16 @@ class Net(nn.Module):
         m_cond_latent = self.condition(label, latent)
         m_output = self.decoder(m_cond_latent)
         
-        nm_indices = [idx for idx in range(len(label)) if label[idx] == 0]
         nm_label = np.zeros(shape=label.shape)
-        nm_idx = random.choice(nm_indices)
-        nm_label[nm_idx] = 1
-
+        
+        for i in range(len(label)):
+            lb = label[i]
+            #nm_indices = [idx for idx in range(len(lb)) if lb[idx] == 0]
+            nm_indices = [idx for idx in range(len(lb)) if lb[idx] == 0]
+            nm_idx = random.choice(nm_indices)
+            nm_label[i][nm_idx] = 1
+        
+        nm_label = torch.FloatTensor(nm_label).to(device=torch.device('cuda'), non_blocking=True, dtype=torch.float32)
         nm_cond_latent = self.condition(nm_label, latent)
         nm_output = self.decoder(nm_cond_latent)
         
@@ -112,13 +117,28 @@ class Reshape(nn.Module):
 import numpy as np
 ##############################################################
 class CustomLoss(nn.Module):
-    def __init__(self, alpha, C, n_mels):
+    def __init__(self, alpha, C, dim):
         super(CustomLoss, self).__init__()
         
+        self.dim = dim
         self.alpha = alpha
-        self.const_vector = np.empty(n_mels)
+        self.const_vector = np.empty(dim)
         self.const_vector.fill(C)
+        self.const_vector = torch.Tensor(self.const_vector).to(device=torch.device('cuda'), non_blocking=True, dtype=torch.float32)
 
     def forward(self, m_output, nm_output, input):
-        pass
-    
+        #print(nm_output[1])
+        nm_diff = torch.abs(nm_output - self.const_vector)
+        #print(nm_diff[1])
+        nm_loss = torch.sum(nm_diff, dim=1)
+        #nm_loss = torch.sqrt(nm_dist) 
+        #print(nm_loss)
+        
+        m_diff = torch.abs(m_output - input)
+        m_loss = torch.sum(m_diff, dim=1)
+        #m_loss = torch.sqrt(m_dist)
+        #print(m_loss)
+
+        loss = self.alpha * m_loss + (1 - self.alpha) * nm_loss
+        loss = torch.sum(loss)
+        return loss
