@@ -132,6 +132,8 @@ def list_to_vector_array(file_list,
         gc.collect()
 
     label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
+    #label = np.empty((features.shape[0], cls_num), dtype=np.float32)
+    #label.fill(-1)
 
     for i in range(len(label)):
         for j in range(cls_num):
@@ -205,7 +207,7 @@ def file_list_generator(target_dir,
     # files = numpy.concatenate((normal_files, anomaly_files), axis=0)
     # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
     random.shuffle(files)
-    files = files[:500]
+    files = files[:800]
     #files = files[:100]
     com.logger.info("train_file  num : {num}".format(num=len(files)))
     if len(files) == 0:

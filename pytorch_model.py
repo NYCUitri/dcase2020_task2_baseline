@@ -69,10 +69,12 @@ class Net(nn.Module):
         m_output = self.decoder(m_cond_latent)
         
         nm_label = np.zeros(shape=label.shape)
+        #nm_label = np.ones(shape=label.shape)
+        #nm_label.fill(-1)
         
         for i in range(len(label)):
             lb = label[i]
-            #nm_indices = [idx for idx in range(len(lb)) if lb[idx] == 0]
+            #nm_indices = [idx for idx in range(len(lb)) if lb[idx] == -1]
             nm_indices = [idx for idx in range(len(lb)) if lb[idx] == 0]
             nm_idx = random.choice(nm_indices)
             nm_label[i][nm_idx] = 1
