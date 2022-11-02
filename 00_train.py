@@ -12,6 +12,7 @@ import os
 import glob
 import sys
 import gc
+import time
 ########################################################################
 
 
@@ -26,6 +27,7 @@ import common as com
 import pytorch_model
 from Dataset import MelDataLoader
 import random
+from torch.utils.tensorboard import SummaryWriter
 ########################################################################
 
 
@@ -128,20 +130,30 @@ def list_to_vector_array(file_list,
             features = np.zeros((vector_array.shape[0] * len(file_list), dims), dtype=np.float32)
         features[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
 
-        del vector_array
+        del vector_array, data
         gc.collect()
 
-    label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
-    #label = np.empty((features.shape[0], cls_num), dtype=np.float32)
-    #label.fill(-1)
+    m_label = np.empty((features.shape[0], cls_num), dtype=np.float32)
+    nm_label = np.empty((features.shape[0], cls_num), dtype=np.float32)
+    #m_label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
+    #nm_label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
+    
+    m_label.fill(-1)
+    nm_label.fill(-1)
 
-    for i in range(len(label)):
+    for i in range(len(m_label)):
+        nm_indices = []
         for j in range(cls_num):
             if j == cls_label:
-                label[i][j] = 1
+                m_label[i][j] = 1
+            else:
+                nm_indices.append(j)
+
+        nm_idx = random.choice(nm_indices)
+        nm_label[i][nm_idx] = 1
 
     #print(label)
-    dataset = [[features[i], label[i]] for i in range(len(label))]
+    dataset = [[features[i], m_label[i], nm_label[i]] for i in range(len(m_label))]
     return dataset
         
 '''
@@ -207,7 +219,7 @@ def file_list_generator(target_dir,
     # files = numpy.concatenate((normal_files, anomaly_files), axis=0)
     # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
     random.shuffle(files)
-    files = files[:800]
+    files = files[:600]
     #files = files[:100]
     com.logger.info("train_file  num : {num}".format(num=len(files)))
     if len(files) == 0:
@@ -257,7 +269,8 @@ if __name__ == "__main__":
         if os.path.exists(model_file_path):
             com.logger.info("model exists")
             continue
-
+        
+        writer = SummaryWriter()
         # generate dataset
         print("============== DATASET_GENERATOR ==============")
 
@@ -306,14 +319,13 @@ if __name__ == "__main__":
         2. Define optimizer and loss
         3. Validation
         '''  
-
-        loss_function = CustomLoss(alpha=0.75, C=5, dim=dim)
-
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-
         epochs = int(param["fit"]["idcae"]["epochs"])
         batch_size = int(param["fit"]["idcae"]["batch_size"])
 
+        loss_function = CustomLoss(alpha=0.8, C=3, dim=dim, batch_size=batch_size)
+        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-4)
+
+        
         val_split = param["fit"]["idcae"]["validation_split"]
         val_size = int(len(dataset) * val_split)
         train_size = len(dataset) - val_size
@@ -336,13 +348,14 @@ if __name__ == "__main__":
 
             model.train()
 
-            for feature_batch, label_batch in tqdm(train_batches):
+            for feature_batch, label_batch, nm_label_batch in tqdm(train_batches):
                 optimizer.zero_grad()
                 #print(type(feature_batch))
                 feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
+                nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 
-                m_output, nm_output = model(feature_batch, label_batch)
+                m_output, nm_output = model(feature_batch, label_batch, nm_label_batch)
                 m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
                 nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
 
@@ -351,7 +364,7 @@ if __name__ == "__main__":
                 optimizer.step()
                 train_loss += loss.item()
 
-                del m_output, nm_output, feature_batch, label_batch
+                del m_output, nm_output, feature_batch, label_batch, nm_label_batch
                 gc.collect()
                 
             train_loss /= len(train_batches)
@@ -359,25 +372,29 @@ if __name__ == "__main__":
 
             model.eval()
 
-            with torch.no_grad():
-                for feature_batch, label_batch in tqdm(val_batches):
-                    
-                    feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
-                    label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
-                    
-                    m_output, nm_output = model(feature_batch, label_batch)
-                    m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
-                    nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
+            for feature_batch, label_batch, nm_label_batch in tqdm(val_batches):
+                
+                feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
+                label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
+                nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
+                
+                m_output, nm_output = model(feature_batch, label_batch, nm_label_batch)
+                m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
+                nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
 
-                    loss = loss_function(m_output, nm_output, feature_batch)
-                    val_loss += loss.item()
+                loss = loss_function(m_output, nm_output, feature_batch)
+                val_loss += loss.item()
 
-                    del m_output, nm_output, feature_batch, label_batch
-                    gc.collect()
+                del m_output, nm_output, feature_batch, label_batch, nm_label_batch
+                gc.collect()
 
-                val_loss /= len(val_batches)
-                val_loss_list.append(val_loss)
-        
+            val_loss /= len(val_batches)
+            val_loss_list.append(val_loss)
+            
+            writer.add_scalar('train/loss', train_loss, epoch)
+            writer.add_scalar('val/loss', val_loss, epoch)
+            writer.add_scalars('comp/loss', {'train': train_loss, 'validation': val_loss}, epoch)
+
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)
         torch.save(model.state_dict(), model_file_path)
@@ -385,3 +402,5 @@ if __name__ == "__main__":
 
         del dataset, train_batches, val_batches
         gc.collect()
+
+        time.sleep(30)

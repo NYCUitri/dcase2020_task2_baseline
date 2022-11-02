@@ -44,7 +44,11 @@ class Net(nn.Module):
         self.condition = FiLMLayer(classNum)
 
         self.decoder = nn.Sequential(
-            nn.Linear(16, 128),
+            nn.Linear(16, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+
+            nn.Linear(64, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
@@ -52,34 +56,18 @@ class Net(nn.Module):
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
-            nn.Linear(128, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(128, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
 
-            nn.Linear(128, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-
-            nn.Linear(128, paramF * paramM)
+            nn.Linear(256, paramF * paramM)
         )
 
-    def forward(self, x, label):
+    def forward(self, x, label, nm_label):
         latent = self.encoder(x)
         m_cond_latent = self.condition(label, latent)
         m_output = self.decoder(m_cond_latent)
         
-        nm_label = np.zeros(shape=label.shape)
-        #nm_label = np.ones(shape=label.shape)
-        #nm_label.fill(-1)
-        
-        for i in range(len(label)):
-            lb = label[i]
-            #nm_indices = [idx for idx in range(len(lb)) if lb[idx] == -1]
-            nm_indices = [idx for idx in range(len(lb)) if lb[idx] == 0]
-            nm_idx = random.choice(nm_indices)
-            nm_label[i][nm_idx] = 1
-        
-        nm_label = torch.FloatTensor(nm_label).to(device=torch.device('cuda'), non_blocking=True, dtype=torch.float32)
         nm_cond_latent = self.condition(nm_label, latent)
         nm_output = self.decoder(nm_cond_latent)
         
@@ -91,14 +79,20 @@ class FiLMLayer(nn.Module):
 
         # Conditioning (Hr, Hb)
         # Hadamard Product
-        self.condition = nn.Sequential(
+        self.condition_r = nn.Sequential(
             nn.Linear(classNum, 16),
             nn.Sigmoid()
         )
 
+        self.condition_b = nn.Sequential(
+            nn.Linear(classNum, 16),
+            nn.Sigmoid(), 
+            nn.Linear(16, 16)
+        )
+
     def forward(self, label, latent): 
-        Hb = self.condition(label)
-        Hr = self.condition(label)
+        Hr = self.condition_r(label)
+        Hb = self.condition_b(label)
 
         cond_latent = latent * Hr + Hb
         return cond_latent
@@ -117,30 +111,34 @@ class Reshape(nn.Module):
 ##############################################################
 # Loss Function
 import numpy as np
+import torch.nn as nn
 ##############################################################
 class CustomLoss(nn.Module):
-    def __init__(self, alpha, C, dim):
+    def __init__(self, alpha, C, dim, batch_size):
         super(CustomLoss, self).__init__()
         
-        self.dim = dim
         self.alpha = alpha
-        self.const_vector = np.empty(dim)
+        self.const_vector = np.empty(shape=(batch_size, dim))
         self.const_vector.fill(C)
         self.const_vector = torch.Tensor(self.const_vector).to(device=torch.device('cuda'), non_blocking=True, dtype=torch.float32)
 
     def forward(self, m_output, nm_output, input):
         #print(nm_output[1])
-        nm_diff = torch.abs(nm_output - self.const_vector)
+        #nm_diff = torch.abs(nm_output - self.const_vector)
         #print(nm_diff[1])
-        nm_loss = torch.sum(nm_diff, dim=1)
+        #nm_loss = torch.sum(nm_diff)
         #nm_loss = torch.sqrt(nm_dist) 
         #print(nm_loss)
         
-        m_diff = torch.abs(m_output - input)
-        m_loss = torch.sum(m_diff, dim=1)
+        #m_diff = torch.abs(m_output - input)
+
+        m_loss = nn.MSELoss()
+        nm_loss = nn.MSELoss()
+        #m_loss = torch.sum(m_diff)
         #m_loss = torch.sqrt(m_dist)
         #print(m_loss)
-
-        loss = self.alpha * m_loss + (1 - self.alpha) * nm_loss
-        loss = torch.sum(loss)
+        if input.shape[0] < self.const_vector.shape[0]:
+            loss = self.alpha * m_loss(m_output, input) + (1 - self.alpha) * nm_loss(nm_output, self.const_vector[:input.shape[0]])
+        else:
+            loss = self.alpha * m_loss(m_output, input) + (1 - self.alpha) * nm_loss(nm_output, self.const_vector)
         return loss

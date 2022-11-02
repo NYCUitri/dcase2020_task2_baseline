@@ -8,5 +8,5 @@ class MelDataLoader(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        feature, label = self.dataset[idx]
-        return feature, label
+        feature, label, nm_label = self.dataset[idx]
+        return feature, label, nm_label
