@@ -185,7 +185,8 @@ if __name__ == "__main__":
         if not os.path.exists(model_file_path):
             com.logger.error("{} model not found ".format(machine_type))
             sys.exit(-1)
-
+        
+        
         paramF = param["feature"]["idcae"]["frames"]
         paramM = param["feature"]["idcae"]["n_mels"]
         

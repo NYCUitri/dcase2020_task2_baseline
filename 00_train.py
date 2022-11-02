@@ -133,13 +133,13 @@ def list_to_vector_array(file_list,
         del vector_array, data
         gc.collect()
 
-    m_label = np.empty((features.shape[0], cls_num), dtype=np.float32)
-    nm_label = np.empty((features.shape[0], cls_num), dtype=np.float32)
-    #m_label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
-    #nm_label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
+    #m_label = np.empty((features.shape[0], cls_num), dtype=np.float32)
+    #nm_label = np.empty((features.shape[0], cls_num), dtype=np.float32)
+    m_label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
+    nm_label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
     
-    m_label.fill(-1)
-    nm_label.fill(-1)
+    #m_label.fill(-1)
+    #nm_label.fill(-1)
 
     for i in range(len(m_label)):
         nm_indices = []
@@ -322,8 +322,8 @@ if __name__ == "__main__":
         epochs = int(param["fit"]["idcae"]["epochs"])
         batch_size = int(param["fit"]["idcae"]["batch_size"])
 
-        loss_function = CustomLoss(alpha=0.8, C=3, dim=dim, batch_size=batch_size)
-        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=1e-4)
+        loss_function = CustomLoss(alpha=0.85, C=5, dim=dim, batch_size=batch_size)
+        optimizer = torch.optim.SGD(model.parameters(), lr=5e-4)
 
         
         val_split = param["fit"]["idcae"]["validation_split"]
@@ -343,6 +343,8 @@ if __name__ == "__main__":
         # FIXME: encoder condition decoder training
         for epoch in range(1, epochs+1):
             train_loss = 0.0
+            mls = 0.0
+            nmls = 0.0
             val_loss = 0.0
             print("Epoch: {}".format(epoch))
 
@@ -359,7 +361,7 @@ if __name__ == "__main__":
                 m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
                 nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
 
-                loss = loss_function(m_output, nm_output, feature_batch)
+                loss, _ , _ = loss_function(m_output, nm_output, feature_batch)
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
@@ -382,18 +384,25 @@ if __name__ == "__main__":
                 m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
                 nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
 
-                loss = loss_function(m_output, nm_output, feature_batch)
+                loss, ml, nml = loss_function(m_output, nm_output, feature_batch)
                 val_loss += loss.item()
+                mls += ml.item()
+                nmls += nml.item()
 
                 del m_output, nm_output, feature_batch, label_batch, nm_label_batch
                 gc.collect()
 
             val_loss /= len(val_batches)
+            mls /= len(val_batches)
+            nmls /= len(val_batches)
+
             val_loss_list.append(val_loss)
             
             writer.add_scalar('train/loss', train_loss, epoch)
             writer.add_scalar('val/loss', val_loss, epoch)
             writer.add_scalars('comp/loss', {'train': train_loss, 'validation': val_loss}, epoch)
+            writer.add_scalar('match loss', mls, epoch)
+            writer.add_scalar('non match loss', nmls, epoch)
 
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)

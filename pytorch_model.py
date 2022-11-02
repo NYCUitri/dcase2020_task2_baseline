@@ -137,8 +137,13 @@ class CustomLoss(nn.Module):
         #m_loss = torch.sum(m_diff)
         #m_loss = torch.sqrt(m_dist)
         #print(m_loss)
+        ml = m_loss(m_output, input)
+
+        
         if input.shape[0] < self.const_vector.shape[0]:
             loss = self.alpha * m_loss(m_output, input) + (1 - self.alpha) * nm_loss(nm_output, self.const_vector[:input.shape[0]])
+            nml = nm_loss(nm_output, self.const_vector[:input.shape[0]])
         else:
             loss = self.alpha * m_loss(m_output, input) + (1 - self.alpha) * nm_loss(nm_output, self.const_vector)
-        return loss
+            nml = nm_loss(nm_output, self.const_vector)
+        return loss, ml, nml
