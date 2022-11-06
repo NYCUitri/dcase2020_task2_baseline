@@ -130,7 +130,7 @@ def list_to_vector_array(file_list,
             features = np.zeros((vector_array.shape[0] * len(file_list), dims), dtype=np.float32)
         features[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
 
-        del vector_array, data
+        del vector_array
         gc.collect()
 
     #m_label = np.empty((features.shape[0], cls_num), dtype=np.float32)
@@ -292,10 +292,10 @@ if __name__ == "__main__":
 
             if i == 0:
                 dataset = sub_dataset
-                del sub_dataset
+                #del sub_dataset
             else:
                 dataset = np.concatenate((dataset, sub_dataset), axis=0)
-                del sub_dataset
+                #del sub_dataset
         
         # train model
         print("============== MODEL TRAINING ==============")
@@ -322,8 +322,8 @@ if __name__ == "__main__":
         epochs = int(param["fit"]["idcae"]["epochs"])
         batch_size = int(param["fit"]["idcae"]["batch_size"])
 
-        loss_function = CustomLoss(alpha=0.85, C=5, dim=dim, batch_size=batch_size)
-        optimizer = torch.optim.SGD(model.parameters(), lr=5e-4)
+        loss_function = CustomLoss(alpha=0.8, C=5, dim=dim, batch_size=batch_size)
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
 
         
         val_split = param["fit"]["idcae"]["validation_split"]

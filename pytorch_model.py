@@ -44,11 +44,7 @@ class Net(nn.Module):
         self.condition = FiLMLayer(classNum)
 
         self.decoder = nn.Sequential(
-            nn.Linear(16, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-
-            nn.Linear(64, 128),
+            nn.Linear(16, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
@@ -56,11 +52,15 @@ class Net(nn.Module):
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
-            nn.Linear(128, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(128, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
 
-            nn.Linear(256, paramF * paramM)
+            nn.Linear(128, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+
+            nn.Linear(128, paramF * paramM)
         )
 
     def forward(self, x, label, nm_label):
@@ -73,6 +73,13 @@ class Net(nn.Module):
         
         return m_output, nm_output
 
+    def predict(self, x, label):
+        latent = self.encoder(x)
+        cond_latent = self.condition(label, latent)
+        output = self.decoder(cond_latent)
+
+        return output
+
 class FiLMLayer(nn.Module):
     def __init__(self, classNum):
         super(FiLMLayer, self).__init__()
@@ -81,7 +88,8 @@ class FiLMLayer(nn.Module):
         # Hadamard Product
         self.condition_r = nn.Sequential(
             nn.Linear(classNum, 16),
-            nn.Sigmoid()
+            nn.Sigmoid(),
+            nn.Linear(16, 16)
         )
 
         self.condition_b = nn.Sequential(
@@ -132,8 +140,8 @@ class CustomLoss(nn.Module):
         
         #m_diff = torch.abs(m_output - input)
 
-        m_loss = nn.MSELoss()
-        nm_loss = nn.MSELoss()
+        m_loss = nn.L1Loss()
+        nm_loss = nn.L1Loss()
         #m_loss = torch.sum(m_diff)
         #m_loss = torch.sqrt(m_dist)
         #print(m_loss)
