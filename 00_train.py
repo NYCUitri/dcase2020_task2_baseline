@@ -28,6 +28,7 @@ import pytorch_model
 from Dataset import MelDataLoader
 import random
 from torch.utils.tensorboard import SummaryWriter
+import torch.optim.lr_scheduler as lr_sched
 ########################################################################
 
 
@@ -119,9 +120,8 @@ def list_to_vector_array(file_list,
                                                 hop_length=hop_length,
                                                 power=power)
 
-        data = vector_array.flatten()
-        mean = np.mean(data, dtype=np.float32)
-        std = np.std(data, dtype=np.float32)
+        mean = np.mean(vector_array, dtype=np.float32, axis=1, keepdims=True)
+        std = np.std(vector_array, dtype=np.float32, axis=1, keepdims=True)
 
         vector_array = (vector_array - mean) / std
         #print(vector_array)
@@ -323,8 +323,9 @@ if __name__ == "__main__":
         batch_size = int(param["fit"]["idcae"]["batch_size"])
 
         loss_function = CustomLoss(alpha=0.8, C=5, dim=dim, batch_size=batch_size)
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
 
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
+        scheduler = lr_sched.StepLR(optimizer=optimizer, step_size=5, gamma=0.95)
         
         val_split = param["fit"]["idcae"]["validation_split"]
         val_size = int(len(dataset) * val_split)
@@ -403,6 +404,8 @@ if __name__ == "__main__":
             writer.add_scalars('comp/loss', {'train': train_loss, 'validation': val_loss}, epoch)
             writer.add_scalar('match loss', mls, epoch)
             writer.add_scalar('non match loss', nmls, epoch)
+
+            scheduler.step()
 
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)
