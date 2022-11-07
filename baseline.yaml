@@ -31,6 +31,6 @@ fit:
     batch_size : 512
     validation_split : 0.1
   idcae:
-    epochs: 100
-    batch_size: 32
+    epochs: 20
+    batch_size: 256
     validation_split: 0.1

@@ -1,6 +1,9 @@
 result/
 model/
 dev_data/
+model_idcae/
+result_idcae/
+runs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

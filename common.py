@@ -148,12 +148,13 @@ def file_to_vector_array(file_name,
 
     # 03 convert melspectrogram to log mel energy
     log_mel_spectrogram = 20.0 / power * numpy.log10(mel_spectrogram + sys.float_info.epsilon)
-    log_mel_spectrogram = log_mel_spectrogram.astype("float32")
+    
 
     # 03-1 convert to db unit
     #log_mel_spectrogram = librosa.power_to_db(mel_spectrogram)
     
     # 04 calculate total vector size
+    log_mel_spectrogram = log_mel_spectrogram.astype("float32")
     vector_array_size = len(log_mel_spectrogram[0, :]) - frames + 1
 
     # 05 skip too short clips

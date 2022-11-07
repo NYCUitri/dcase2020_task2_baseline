@@ -12,6 +12,7 @@ import os
 import glob
 import sys
 import gc
+import time
 ########################################################################
 
 
@@ -26,6 +27,7 @@ import common as com
 import pytorch_model
 from Dataset import MelDataLoader
 import random
+from torch.utils.tensorboard import SummaryWriter
 ########################################################################
 
 
@@ -131,15 +133,27 @@ def list_to_vector_array(file_list,
         del vector_array
         gc.collect()
 
-    label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
+    #m_label = np.empty((features.shape[0], cls_num), dtype=np.float32)
+    #nm_label = np.empty((features.shape[0], cls_num), dtype=np.float32)
+    m_label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
+    nm_label = np.zeros((features.shape[0], cls_num), dtype=np.float32)
+    
+    #m_label.fill(-1)
+    #nm_label.fill(-1)
 
-    for i in range(len(label)):
+    for i in range(len(m_label)):
+        nm_indices = []
         for j in range(cls_num):
             if j == cls_label:
-                label[i][j] = 1
+                m_label[i][j] = 1
+            else:
+                nm_indices.append(j)
+
+        nm_idx = random.choice(nm_indices)
+        nm_label[i][nm_idx] = 1
 
     #print(label)
-    dataset = [[features[i], label[i]] for i in range(len(label))]
+    dataset = [[features[i], m_label[i], nm_label[i]] for i in range(len(m_label))]
     return dataset
         
 '''
@@ -205,7 +219,9 @@ def file_list_generator(target_dir,
     # files = numpy.concatenate((normal_files, anomaly_files), axis=0)
     # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
     random.shuffle(files)
-    files = files[:600]
+    # files = files[:600]
+    files = files[:300]
+    #files = files[:100]
     com.logger.info("train_file  num : {num}".format(num=len(files)))
     if len(files) == 0:
         com.logger.exception("no_wav_file!!")
@@ -251,10 +267,11 @@ if __name__ == "__main__":
         history_img = "{model}/history_{machine_type}.png".format(model=param["model_directory"]["idcae"],
                                                                   machine_type=machine_type)
 
-        if os.path.exists(model_file_path):
-            com.logger.info("model exists")
-            continue
-
+        # if os.path.exists(model_file_path):
+        #     com.logger.info("model exists")
+        #     continue
+        
+        writer = SummaryWriter()
         # generate dataset
         print("============== DATASET_GENERATOR ==============")
 
@@ -276,10 +293,10 @@ if __name__ == "__main__":
 
             if i == 0:
                 dataset = sub_dataset
-                del sub_dataset
+                #del sub_dataset
             else:
                 dataset = np.concatenate((dataset, sub_dataset), axis=0)
-                del sub_dataset
+                #del sub_dataset
         
         # train model
         print("============== MODEL TRAINING ==============")
@@ -288,11 +305,12 @@ if __name__ == "__main__":
         import torch.nn as nn
         import torch
         from torch.utils.data import random_split, DataLoader
-        from pytorch_model import Net
+        from pytorch_model import Net, CustomLoss
         ########################################################################################
 
         paramF = param["feature"]["idcae"]["frames"]
         paramM = param["feature"]["idcae"]["n_mels"]
+        dim = paramF * paramM
 
         model = Net(paramF=paramF, paramM=paramM, classNum=len(machine_id_list))
         model.float()
@@ -302,15 +320,14 @@ if __name__ == "__main__":
         2. Define optimizer and loss
         3. Validation
         '''  
-        # loss_function = nn.CrossEntropyLoss()
-        # loss_function = nn.MSELoss()
-        loss_function = pytorch_model.Calculate_Loss()
-
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-
         epochs = int(param["fit"]["idcae"]["epochs"])
         batch_size = int(param["fit"]["idcae"]["batch_size"])
 
+        loss_function = CustomLoss(alpha=0.8, C=5, dim=dim, batch_size=batch_size)
+        # optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+        lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=0.96, last_epoch=-1)
+        
         val_split = param["fit"]["idcae"]["validation_split"]
         val_size = int(len(dataset) * val_split)
         train_size = len(dataset) - val_size
@@ -328,42 +345,68 @@ if __name__ == "__main__":
         # FIXME: encoder condition decoder training
         for epoch in range(1, epochs+1):
             train_loss = 0.0
+            mls = 0.0
+            nmls = 0.0
             val_loss = 0.0
             print("Epoch: {}".format(epoch))
 
             model.train()
-
-            for batch in tqdm(train_batches):
+            if epoch % 5 == 0:
+                lr_scheduler.step()
+            for feature_batch, label_batch, nm_label_batch in tqdm(train_batches):
                 optimizer.zero_grad()
-                feature_batch, label_batch = batch
                 #print(type(feature_batch))
                 feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
+                nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 
-                m_output, nm_output = model(feature_batch, label_batch).to(device, non_blocking=True, dtype=torch.float32)
+                m_output, nm_output = model(feature_batch, label_batch, nm_label_batch)
+                m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
+                nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
 
-                loss = loss_function(m_output, nm_output, batch)
+                loss, _ , _ = loss_function(m_output, nm_output, feature_batch)
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
+
+                del m_output, nm_output, feature_batch, label_batch, nm_label_batch
+                gc.collect()
                 
             train_loss /= len(train_batches)
             train_loss_list.append(train_loss)
 
-            """ model.eval()
+            model.eval()
 
-            with torch.no_grad():
-                for batch in tqdm(val_batches):
-                    batch = batch.to(device, non_blocking=True, dtype=torch.float16)
-                    feature_batch, label_batch = batch
-                    
-                    m_output = model(feature_batch, label_batch)
-                    loss = loss_function(m_output, label_batch)
-                    val_loss += loss.item()
+            for feature_batch, label_batch, nm_label_batch in tqdm(val_batches):
+                
+                feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
+                label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
+                nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
+                
+                m_output, nm_output = model(feature_batch, label_batch, nm_label_batch)
+                m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
+                nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
 
-                val_loss /= len(val_batches)
-                val_loss_list.append(val_loss) """
-        
+                loss, ml, nml = loss_function(m_output, nm_output, feature_batch)
+                val_loss += loss.item()
+                mls += ml.item()
+                nmls += nml.item()
+
+                del m_output, nm_output, feature_batch, label_batch, nm_label_batch
+                gc.collect()
+
+            val_loss /= len(val_batches)
+            mls /= len(val_batches)
+            nmls /= len(val_batches)
+
+            val_loss_list.append(val_loss)
+            
+            writer.add_scalar('train/loss', train_loss, epoch)
+            writer.add_scalar('val/loss', val_loss, epoch)
+            writer.add_scalars('comp/loss', {'train': train_loss, 'validation': val_loss}, epoch)
+            writer.add_scalar('match loss', mls, epoch)
+            writer.add_scalar('non match loss', nmls, epoch)
+
         visualizer.loss_plot(train_loss_list, val_loss_list)
         visualizer.save_figure(history_img)
         torch.save(model.state_dict(), model_file_path)
@@ -371,3 +414,5 @@ if __name__ == "__main__":
 
         del dataset, train_batches, val_batches
         gc.collect()
+
+        time.sleep(30)

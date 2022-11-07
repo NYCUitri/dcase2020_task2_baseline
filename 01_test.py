@@ -31,6 +31,7 @@ import common as com
 from pytorch_model import *
 from torchsummary import summary
 from torch.utils.data import DataLoader
+import torch.nn as nn
 ########################################################################
 
 
@@ -184,19 +185,13 @@ if __name__ == "__main__":
         # load model file
         if not os.path.exists(model_file_path):
             com.logger.error("{} model not found ".format(machine_type))
+            continue
             sys.exit(-1)
-
+        
+        
         paramF = param["feature"]["idcae"]["frames"]
         paramM = param["feature"]["idcae"]["n_mels"]
         
-        encoder = Encoder(paramF, paramM)
-        decoder = Decoder(paramF, paramM)
-        encoder.load_state_dict(torch.load(encoder_file))
-        decoder.load_state_dict(torch.load(decoder_file))
-        
-        device = torch.device('cuda')
-        encoder = encoder.to(device)
-        decoder = decoder.to(device)
         #summary(model.float(), input_size=(inputDim, ))
 
         if mode:
@@ -207,8 +202,16 @@ if __name__ == "__main__":
 
         machine_id_list = com.get_machine_id_list(target_dir)
 
-        for id_str in machine_id_list:
+        model = Net(paramF, paramM, len(machine_id_list))
+        model.load_state_dict(torch.load(model_file_path))
+        
+        device = torch.device('cuda')
+        model = model.to(device)
+        model.float()
+
+        for idx in range(len(machine_id_list)):
             # load test file
+            id_str = machine_id_list[idx]
             test_files, y_true = test_file_list_generator(target_dir, id_str, dir_name="test")
 
             # setup anomaly score file path
@@ -219,35 +222,61 @@ if __name__ == "__main__":
             anomaly_score_list = []
 
             print("\n============== BEGIN TEST FOR A MACHINE ID ==============")
-            y_pred = [0. for k in test_files]
+            #y_pred = [0. for k in test_files]
+            y_pred = []
+
+            loss_fn = nn.MSELoss()
+
             for file_idx, file_path in tqdm(enumerate(test_files), total=len(test_files)):
                 #try:
-                data = com.file_to_vector_array(file_path,
+                vector_array = com.file_to_vector_array(file_path,
                                                 n_mels=param["feature"]["idcae"]["n_mels"],
                                                 frames=param["feature"]["idcae"]["frames"],
                                                 n_fft=param["feature"]["idcae"]["n_fft"],
                                                 hop_length=param["feature"]["idcae"]["hop_length"],
                                                 power=param["feature"]["idcae"]["power"])
 
+                data = vector_array.flatten()
+                mean = np.mean(data, dtype=np.float32)
+                std = np.std(data, dtype=np.float32)
+
+                vector_array = (vector_array - mean) / std
+
+
                 '''
                 change: testing
                 '''
+                model.eval()
+                
                 errors = []
-                encoder.eval()
-                decoder.eval()
-                encoder.double()
-                decoder.double()
+                with torch.no_grad():
+                    features = torch.Tensor(vector_array).to(device=device, non_blocking=True, dtype=torch.float32)
+                    label = np.zeros(shape=(features.shape[0], len(machine_id_list)))
+                    label = torch.Tensor(label).to(device=device, non_blocking=True, dtype=torch.float32)
+                    
+                    for i in range(len(machine_id_list)):
+                        if i == 0:
+                            label[:, 0] = 1
+                        else:
+                            label[:, i-1] = 0
+                            label[:, i] = 1
+                        
+                        reconstruction = model.predict(features, label)
+                        error = loss_fn(features, reconstruction)
+                        errors.append(error.item())
+                    
 
-                for i in range(len(data)):
-                    with torch.no_grad():
-                        vector = torch.DoubleTensor(data[i]).view(-1, len(data[i]))
-                        vector = vector.to(device)
-                        latent = encoder(vector).to(device)
-                        prediction = decoder(vector).to(device)
-                        errors.append(torch.mean(np.square(vector.cpu() - prediction.cpu()), dim=1, dtype=torch.float64))
+                #for i in range(len(data)):
+                    #with torch.no_grad():
+                        #features = torch.Tensor(data[i]).view(-1, len(data[i]))
+                        #features = features.to(device=device, non_blocking=True, dtype=torch.float32)
+
+                        #for j in range(len(machine_id_list)):
+                            #reconstruction = model.predict(features, )
                         #errors.append(cp.mean(cp.square(vector - prediction), dim=1, dtype=torch.float64))
 
-                y_pred[file_idx] = np.mean(errors)
+                y_pred.append(errors)
+                #y_pred[file_idx] = np.mean(errors)
                 anomaly_score_list.append([os.path.basename(file_path), y_pred[file_idx]])
 
                 ############################################################################
@@ -262,25 +291,25 @@ if __name__ == "__main__":
             save_csv(save_file_path=anomaly_score_csv, save_data=anomaly_score_list)
             com.logger.info("anomaly score result ->  {}".format(anomaly_score_csv))
 
-            if mode:
+            """ if mode:
                 # append AUC and pAUC to lists
                 auc = metrics.roc_auc_score(y_true, y_pred)
                 p_auc = metrics.roc_auc_score(y_true, y_pred, max_fpr=param["max_fpr"])
                 csv_lines.append([id_str.split("_", 1)[1], auc, p_auc])
                 performance.append([auc, p_auc])
                 com.logger.info("AUC : {}".format(auc))
-                com.logger.info("pAUC : {}".format(p_auc))
+                com.logger.info("pAUC : {}".format(p_auc)) """
 
             print("\n============ END OF TEST FOR A MACHINE ID ============")
 
-        if mode:
+        """ if mode:
             # calculate averages for AUCs and pAUCs
             averaged_performance = np.mean(np.array(performance, dtype=float), axis=0)
             csv_lines.append(["Average"] + list(averaged_performance))
-            csv_lines.append([])
+            csv_lines.append([]) """
 
-    if mode:
+    """ if mode:
         # output results
         result_path = "{result}/{file_name}".format(result=param["result_directory"]["idcae"], file_name=param["result_file"])
         com.logger.info("AUC and pAUC results -> {}".format(result_path))
-        save_csv(save_file_path=result_path, save_data=csv_lines)
+        save_csv(save_file_path=result_path, save_data=csv_lines) """
