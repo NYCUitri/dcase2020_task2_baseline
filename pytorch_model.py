@@ -16,9 +16,9 @@ import random
 #########################################################################
 # pytorch model
 #########################################################################
-class Net(nn.Module):
+class Encoder(nn.Module):
     def __init__(self, paramF, paramM, classNum):
-        super(Net, self).__init__()
+        super(Encoder, self).__init__()
 
         self.encoder = nn.Sequential(
             #nn.Flatten(),
@@ -41,46 +41,71 @@ class Net(nn.Module):
             nn.ReLU()
         )
 
-        self.condition = FiLMLayer(classNum)
+        self.classifier = nn.Sequential(
+            nn.Linear(16, classNum)
+        ) 
+    
+    def forward(self, x):
+        latent = self.encoder(x)
+        cls_output = self.classifier(latent)
+        return latent, cls_output
 
-        self.decoder = nn.Sequential(
-            nn.Linear(16, 128),
-            nn.BatchNorm1d(128),
+class Decoder(nn.Module):
+    def __init__(self, paramF, paramM, classNum):
+        super(Decoder, self).__init__()
+
+        self.condition_layer = nn.Sequential(
+            nn.Linear(classNum, 16),
+            nn.BatchNorm1d(16),
             nn.ReLU(),
 
-            nn.Linear(128, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(16, 32),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
 
-            nn.Linear(128, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-
-            nn.Linear(128, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-
-            nn.Linear(128, paramF * paramM)
+            nn.Linear(32, 32)
         )
 
-    def forward(self, x, label, nm_label):
-        latent = self.encoder(x)
-        m_cond_latent = self.condition(label, latent)
+        self.decoder = nn.Sequential(
+            nn.Linear(16, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+
+            nn.Linear(64, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+
+            nn.Linear(128, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+
+            nn.Linear(128, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+
+            nn.Linear(256, paramF * paramM)
+        )
+
+    def forward(self, latent, label, nm_label):
+        m_cond = self.condition_layer(label)
+        m_Hr, m_Hb = m_cond[:, :16], m_cond[:, 16:32]
+        m_cond_latent = latent * m_Hr + m_Hb
         m_output = self.decoder(m_cond_latent)
         
-        nm_cond_latent = self.condition(nm_label, latent)
+        nm_cond = self.condition_layer(nm_label)
+        nm_Hr, nm_Hb = m_cond[:, :16], m_cond[:, 16:32]
+        nm_cond_latent = latent * nm_Hr + nm_Hb
         nm_output = self.decoder(nm_cond_latent)
         
         return m_output, nm_output
 
-    def predict(self, x, label):
-        latent = self.encoder(x)
+    """ def predict(self, x, label):
         cond_latent = self.condition(label, latent)
         output = self.decoder(cond_latent)
 
-        return output
+        return output """
 
-class FiLMLayer(nn.Module):
+""" class FiLMLayer(nn.Module):
     def __init__(self, classNum):
         super(FiLMLayer, self).__init__()
 
@@ -103,7 +128,7 @@ class FiLMLayer(nn.Module):
         Hb = self.condition_b(label)
 
         cond_latent = latent * Hr + Hb
-        return cond_latent
+        return cond_latent """
 
 # Reshape Layer
 class Reshape(nn.Module): 
@@ -122,10 +147,9 @@ import numpy as np
 import torch.nn as nn
 ##############################################################
 class CustomLoss(nn.Module):
-    def __init__(self, alpha, C, dim, batch_size):
+    def __init__(self, C, dim, batch_size):
         super(CustomLoss, self).__init__()
         
-        self.alpha = alpha
         self.const_vector = np.empty(shape=(batch_size, dim))
         self.const_vector.fill(C)
         self.const_vector = torch.Tensor(self.const_vector).to(device=torch.device('cuda'), non_blocking=True, dtype=torch.float32)
@@ -140,18 +164,15 @@ class CustomLoss(nn.Module):
         
         #m_diff = torch.abs(m_output - input)
 
-        m_loss = nn.L1Loss()
-        nm_loss = nn.L1Loss()
+        loss_fn = nn.L1Loss()
         #m_loss = torch.sum(m_diff)
         #m_loss = torch.sqrt(m_dist)
         #print(m_loss)
-        ml = m_loss(m_output, input)
+        m_loss = loss_fn(m_output, input)
 
-        
         if input.shape[0] < self.const_vector.shape[0]:
-            loss = self.alpha * m_loss(m_output, input) + (1 - self.alpha) * nm_loss(nm_output, self.const_vector[:input.shape[0]])
-            nml = nm_loss(nm_output, self.const_vector[:input.shape[0]])
+            nm_loss = loss_fn(nm_output, self.const_vector[:input.shape[0]])
         else:
-            loss = self.alpha * m_loss(m_output, input) + (1 - self.alpha) * nm_loss(nm_output, self.const_vector)
-            nml = nm_loss(nm_output, self.const_vector)
-        return loss, ml, nml
+            nm_loss = loss_fn(nm_output, self.const_vector)
+
+        return m_loss, nm_loss
