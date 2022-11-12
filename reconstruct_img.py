@@ -3,7 +3,7 @@ from PIL import Image as im
 import numpy as np
 
 # input type: list[numpy]
-def reconstruct_spectrogram(reconstructions):
+def reconstruct_spectrogram(reconstructions, name=None):
     for i in range(len(reconstructions)):
         rec = reconstructions[i]
         if (np.min(rec) < 0):
@@ -12,4 +12,7 @@ def reconstruct_spectrogram(reconstructions):
             rec *= times
         img = im.fromarray(rec)
         img = img.convert('RGB')
-        img.save("rec"+str(i)+".png")
+        if name != None:
+            img.save(str(name[i])+".png")
+        else:
+            img.save("rec"+str(i)+".png")
