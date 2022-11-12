@@ -28,6 +28,7 @@ import pytorch_model
 from Dataset import MelDataLoader
 import random
 from torch.utils.tensorboard import SummaryWriter
+import torch.optim.lr_scheduler as lr_sched
 ########################################################################
 
 
@@ -118,12 +119,6 @@ def list_to_vector_array(file_list,
                                                 n_fft=n_fft,
                                                 hop_length=hop_length,
                                                 power=power)
-
-        data = vector_array.flatten()
-        mean = np.mean(data, dtype=np.float32)
-        std = np.std(data, dtype=np.float32)
-
-        vector_array = (vector_array - mean) / std
         #print(vector_array)
 
         if idx == 0:
@@ -262,14 +257,17 @@ if __name__ == "__main__":
         '''
         
         machine_type = os.path.split(target_dir)[1]
-        model_file_path = "{model}/model_{machine_type}.pt".format(model=param["model_directory"]["idcae"],
+        encoder_file_path = "{model}/encoder_{machine_type}.pt".format(model=param["model_directory"]["idcae"],
                                                                      machine_type=machine_type)
+        decoder_file_path = "{model}/decoder_{machine_type}.pt".format(model=param["model_directory"]["idcae"],
+                                                                     machine_type=machine_type)
+
         history_img = "{model}/history_{machine_type}.png".format(model=param["model_directory"]["idcae"],
                                                                   machine_type=machine_type)
 
-        # if os.path.exists(model_file_path):
-        #     com.logger.info("model exists")
-        #     continue
+        if os.path.exists(encoder_file_path) and os.path.exists(decoder_file_path):
+            com.logger.info("model exists")
+            continue
         
         writer = SummaryWriter()
         # generate dataset
@@ -305,15 +303,17 @@ if __name__ == "__main__":
         import torch.nn as nn
         import torch
         from torch.utils.data import random_split, DataLoader
-        from pytorch_model import Net, CustomLoss
+        from pytorch_model import Encoder, Decoder, CustomLoss
         ########################################################################################
 
         paramF = param["feature"]["idcae"]["frames"]
         paramM = param["feature"]["idcae"]["n_mels"]
         dim = paramF * paramM
 
-        model = Net(paramF=paramF, paramM=paramM, classNum=len(machine_id_list))
-        model.float()
+        encoder = Encoder(paramF=paramF, paramM=paramM, classNum=len(machine_id_list))
+        decoder = Decoder(paramF=paramF, paramM=paramM, classNum=len(machine_id_list))
+        encoder.float()
+        decoder.float()
         
         '''
         1. Dataset input to model
@@ -323,10 +323,7 @@ if __name__ == "__main__":
         epochs = int(param["fit"]["idcae"]["epochs"])
         batch_size = int(param["fit"]["idcae"]["batch_size"])
 
-        loss_function = CustomLoss(alpha=0.8, C=5, dim=dim, batch_size=batch_size)
-        # optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-        lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=0.96, last_epoch=-1)
+        #scheduler = lr_sched.StepLR(optimizer=optimizer, step_size=5, gamma=0.95)
         
         val_split = param["fit"]["idcae"]["validation_split"]
         val_size = int(len(dataset) * val_split)
@@ -336,46 +333,144 @@ if __name__ == "__main__":
         train_batches = DataLoader(dataset=MelDataLoader(train_dataset), batch_size=batch_size, shuffle=True)
         val_batches = DataLoader(dataset=MelDataLoader(valid_dataset), batch_size=batch_size, shuffle=True)
 
-        train_loss_list = []
-        val_loss_list = []
-
         device = torch.device('cuda')
-        model = model.to(device=device, dtype=torch.float32)
+        
+        '''
+        Encoder Training
+        '''
+        en_train_loss_list = []
+        en_val_loss_list = []
 
-        # FIXME: encoder condition decoder training
+        en_loss_fn = nn.CrossEntropyLoss(reduction='sum')
+        en_optim = torch.optim.SGD(encoder.parameters(), lr=3e-6, weight_decay=1e-7)
+
+        encoder = encoder.to(device=device, dtype=torch.float32)
+
+        if os.path.exists(encoder_file_path):
+            print("Encoder exists...")
+            encoder.load_state_dict(torch.load(encoder_file_path))
+        else:
+            print("Start Encoder training...")
+            for epoch in range(1, epochs+1):
+                train_loss = 0.0
+                val_loss = 0.0
+                print("Epoch: {}".format(epoch))
+
+                encoder.train()
+                for feature_batch, label_batch, _ in tqdm(train_batches):
+                    en_optim.zero_grad()
+
+                    feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
+                    label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
+
+                    _ , cls_output = encoder(feature_batch)
+                    cls_output = cls_output.to(device=device, non_blocking=True, dtype=torch.float32)
+
+                    label_batch = torch.argmax(label_batch, dim=1)
+                    
+                    loss = en_loss_fn(cls_output, label_batch.long())
+                    loss.backward()
+                    en_optim.step()
+
+                    train_loss += loss.item()
+
+                    del feature_batch, label_batch, cls_output
+                    gc.collect()
+
+                train_loss /= len(train_batches)
+                en_train_loss_list.append(train_loss)
+
+                encoder.eval()
+                for feature_batch, label_batch, _ in tqdm(val_batches):
+
+                    feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
+                    label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
+                    
+                    _ , cls_output = encoder(feature_batch)
+                    cls_output = cls_output.to(device=device, non_blocking=True, dtype=torch.float32)
+                    label_batch = torch.argmax(label_batch, dim=1)
+                    
+                    loss = en_loss_fn(cls_output, label_batch.long())
+                    val_loss += loss.item()
+
+                    del feature_batch, label_batch, cls_output
+                    gc.collect()  
+                
+                val_loss /= len(val_batches)
+                en_val_loss_list.append(val_loss)
+
+                writer.add_scalar('en_train/loss', train_loss, epoch)
+                writer.add_scalar('en_val/loss', val_loss, epoch)
+                writer.add_scalars('en_comp/loss', {'train': train_loss, 'validation': val_loss}, epoch)
+
+            torch.save(encoder.state_dict(), encoder_file_path)
+        '''
+        Decoder Training
+        '''
+        de_train_loss_list = []
+        de_val_loss_list = []
+
+        decoder = decoder.to(device=device, dtype=torch.float32)  
+        de_loss_fn = nn.MSELoss()  
+        de_optim = torch.optim.SGD(decoder.parameters(), lr=1e-4, weight_decay=1e-6)
+        scheduler = lr_sched.StepLR(optimizer=de_optim, step_size=5, gamma=0.95)
+        alpha = 0.8
+        C = 5
+
+        nm_input = np.empty(shape=(batch_size, dim))
+        nm_input.fill(C)
+        nm_input = torch.Tensor(nm_input).to(device=device, non_blocking=True, dtype=torch.float32)
+        
+
+        print("Start Decoder training...")
+        encoder.eval()
+
         for epoch in range(1, epochs+1):
             train_loss = 0.0
-            mls = 0.0
-            nmls = 0.0
             val_loss = 0.0
+            ml = 0.0
+            nml = 0.0
+            bl = 0.0
             print("Epoch: {}".format(epoch))
 
-            model.train()
-            if epoch % 5 == 0:
-                lr_scheduler.step()
+            decoder.train()
+
             for feature_batch, label_batch, nm_label_batch in tqdm(train_batches):
-                optimizer.zero_grad()
-                #print(type(feature_batch))
+                de_optim.zero_grad()
+                
                 feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 
-                m_output, nm_output = model(feature_batch, label_batch, nm_label_batch)
+                latent, _ = encoder(feature_batch)
+
+                label_batch = 2 * (label_batch - 0.5)
+                nm_label_batch = 2 * (nm_label_batch - 0.5)
+                
+                m_output, nm_output = decoder(latent, label_batch, nm_label_batch)
                 m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
                 nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
+                #print(m_output)
 
-                loss, _ , _ = loss_function(m_output, nm_output, feature_batch)
+                #nm_input = feature_batch * (-1)
+                m_loss = de_loss_fn(m_output, feature_batch)
+                if nm_output.shape[0] < batch_size:
+                    nm_loss = de_loss_fn(nm_output, nm_input[:nm_output.shape[0]])
+                else:
+                    nm_loss = de_loss_fn(nm_output, nm_input)
+                
+                loss = alpha * m_loss + (1-alpha) * nm_loss
                 loss.backward()
-                optimizer.step()
+                de_optim.step()
                 train_loss += loss.item()
 
                 del m_output, nm_output, feature_batch, label_batch, nm_label_batch
                 gc.collect()
                 
             train_loss /= len(train_batches)
-            train_loss_list.append(train_loss)
+            de_train_loss_list.append(train_loss)
 
-            model.eval()
+            decoder.eval()
 
             for feature_batch, label_batch, nm_label_batch in tqdm(val_batches):
                 
@@ -383,34 +478,54 @@ if __name__ == "__main__":
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 
-                m_output, nm_output = model(feature_batch, label_batch, nm_label_batch)
+                latent, _ = encoder(feature_batch)
+
+                label_batch = 2 * (label_batch - 0.5)
+                nm_label_batch = 2 * (nm_label_batch - 0.5)
+
+                m_output, nm_output = decoder(latent, label_batch, nm_label_batch)
                 m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
                 nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
 
-                loss, ml, nml = loss_function(m_output, nm_output, feature_batch)
+                m_loss = de_loss_fn(m_output, feature_batch)
+                if nm_output.shape[0] < batch_size:
+                    nm_loss = de_loss_fn(nm_output, nm_input[:nm_output.shape[0]])
+                else:
+                    nm_loss = de_loss_fn(nm_output, nm_input)
+
+                bad_loss = de_loss_fn(nm_output, feature_batch)
+                bl += bad_loss.item()
+
+                loss = alpha * m_loss + (1-alpha) * nm_loss
                 val_loss += loss.item()
-                mls += ml.item()
-                nmls += nml.item()
+                ml += m_loss.item()
+                nml += nm_loss.item()
 
                 del m_output, nm_output, feature_batch, label_batch, nm_label_batch
                 gc.collect()
 
             val_loss /= len(val_batches)
-            mls /= len(val_batches)
-            nmls /= len(val_batches)
+            ml /= len(val_batches)
+            nml /= len(val_batches)
+            bl /= len(val_batches)
 
-            val_loss_list.append(val_loss)
+            de_val_loss_list.append(val_loss)
             
-            writer.add_scalar('train/loss', train_loss, epoch)
-            writer.add_scalar('val/loss', val_loss, epoch)
-            writer.add_scalars('comp/loss', {'train': train_loss, 'validation': val_loss}, epoch)
-            writer.add_scalar('match loss', mls, epoch)
-            writer.add_scalar('non match loss', nmls, epoch)
+            writer.add_scalar('de_train/loss', train_loss, epoch)
+            writer.add_scalar('de_val/loss', val_loss, epoch)
+            writer.add_scalars('de_comp/loss', {'train': train_loss, 'validation': val_loss}, epoch)
+            writer.add_scalar('match loss', ml, epoch)
+            writer.add_scalar('non match loss', nml, epoch)
+            writer.add_scalar('bad loss', bl, epoch)
 
-        visualizer.loss_plot(train_loss_list, val_loss_list)
+            scheduler.step()
+
+        visualizer.loss_plot(de_train_loss_list, de_val_loss_list)
         visualizer.save_figure(history_img)
-        torch.save(model.state_dict(), model_file_path)
-        com.logger.info("save_model -> {}".format(model_file_path))
+
+        torch.save(decoder.state_dict(), decoder_file_path)
+
+        com.logger.info("save_model -> en: {en_path} de: {de_path}".format(en_path=encoder_file_path, de_path=decoder_file_path))
 
         del dataset, train_batches, val_batches
         gc.collect()
