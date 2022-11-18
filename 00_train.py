@@ -461,17 +461,18 @@ if __name__ == "__main__":
 
             decoder.train()
 
+            idx = 100
             for feature_batch, label_batch, nm_label_batch in tqdm(train_batches):
                 de_optim.zero_grad()
+                
+                nm_input = train_batches[idx]
+                idx = (idx + 1) % (len(train_batches) - 1)
                 
                 feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 
                 latent, _ = encoder(feature_batch)
-
-                label_batch = 2 * (label_batch - 0.5)
-                nm_label_batch = 2 * (nm_label_batch - 0.5)
                 
                 m_output, nm_output = decoder(latent, label_batch, nm_label_batch)
                 m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
@@ -505,9 +506,6 @@ if __name__ == "__main__":
                 nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 
                 latent, _ = encoder(feature_batch)
-
-                label_batch = 2 * (label_batch - 0.5)
-                nm_label_batch = 2 * (nm_label_batch - 0.5)
 
                 m_output, nm_output = decoder(latent, label_batch, nm_label_batch)
                 m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
