@@ -215,7 +215,7 @@ def file_list_generator(target_dir,
     # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
     random.shuffle(files)
     # files = files[:600]
-    files = files[:300]
+    files = files[:600]
     #files = files[:100]
     com.logger.info("train_file  num : {num}".format(num=len(files)))
     if len(files) == 0:
