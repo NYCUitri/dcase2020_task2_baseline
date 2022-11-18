@@ -13,6 +13,6 @@ def reconstruct_spectrogram(reconstructions, name=None):
         img = im.fromarray(rec)
         img = img.convert('RGB')
         if name != None:
-            img.save(str(name[i])+".png")
+            img.save("./rec_imgs/"+str(name[i])+".png")
         else:
             img.save("rec"+str(i)+".png")
