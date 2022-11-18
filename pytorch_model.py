@@ -42,7 +42,8 @@ class Encoder(nn.Module):
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(16, classNum)
+            nn.Linear(16, classNum), 
+            nn.Softmax(dim=1)
         ) 
     
     def forward(self, x):
