@@ -340,7 +340,7 @@ if __name__ == "__main__":
         en_train_loss_list = []
         en_val_loss_list = []
 
-        en_loss_fn = nn.CrossEntropyLoss(reduction='sum')
+        en_loss_fn = nn.NLLLoss(reduction='sum')
         en_optim = torch.optim.SGD(encoder.parameters(), lr=3e-6, weight_decay=1e-7)
 
         encoder = encoder.to(device=device, dtype=torch.float32)
@@ -367,7 +367,7 @@ if __name__ == "__main__":
 
                     label_batch = torch.argmax(label_batch, dim=1)
                     
-                    loss = en_loss_fn(cls_output, label_batch.long())
+                    loss = en_loss_fn(torch.log(cls_output), label_batch.long())
                     loss.backward()
                     en_optim.step()
 
@@ -403,6 +403,32 @@ if __name__ == "__main__":
                 writer.add_scalars('en_comp/loss', {'train': train_loss, 'validation': val_loss}, epoch)
 
             torch.save(encoder.state_dict(), encoder_file_path)
+
+        print("Classification Test...")
+        count = 0.0
+        total_cnt = 0.0
+        for feature_batch, label_batch, _ in tqdm(val_batches):
+
+            feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
+            label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
+
+            total_cnt += feature_batch.shape[0]
+            #print(total_cnt)
+            _ , cls_output = encoder(feature_batch)
+            cls_output = cls_output.to(device=device, non_blocking=True, dtype=torch.float32)
+            pred = torch.argmax(cls_output, dim=1)
+            truth = torch.argmax(label_batch, dim=1)
+            #print(pred)
+            #print(truth)
+            #print(pred, truth)
+            compare = torch.eq(pred, truth)
+            correct = torch.sum(compare)
+            count += correct
+            #print(count)
+        print(count, total_cnt)
+        correctness = int(count) / total_cnt
+        print("The accuracy of classification: {acc}".format(acc=correctness))
+
         '''
         Decoder Training
         '''
