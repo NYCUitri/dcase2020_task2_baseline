@@ -28,14 +28,17 @@ class Encoder(nn.Module):
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
+            # DenseBlock 64
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
 
+            # DenseBlock 32
             nn.Linear(64, 32),
             nn.BatchNorm1d(32),
             nn.ReLU(),
 
+            # DenseBlock 16
             nn.Linear(32, 16),
             nn.BatchNorm1d(16),
             nn.ReLU()
@@ -55,16 +58,31 @@ class Decoder(nn.Module):
     def __init__(self, paramF, paramM, classNum):
         super(Decoder, self).__init__()
 
-        self.condition_layer = nn.Sequential(
+        self.condition_layer_Hr = nn.Sequential(
             nn.Linear(classNum, 16),
             nn.BatchNorm1d(16),
             nn.ReLU(),
 
-            nn.Linear(16, 32),
-            nn.BatchNorm1d(32),
+            nn.Sigmoid(),
+
+            # nn.Linear(16, 32),
+            # nn.BatchNorm1d(32),
+            # nn.ReLU(),
+
+            # nn.Linear(32, 32)
+        )
+        self.condition_layer_Hb = nn.Sequential(
+            nn.Linear(classNum, 16),
+            nn.BatchNorm1d(16),
             nn.ReLU(),
 
-            nn.Linear(32, 32)
+            # nn.Sigmoid(),
+
+            # nn.Linear(16, 32),
+            # nn.BatchNorm1d(32),
+            # nn.ReLU(),
+
+            # nn.Linear(32, 32)
         )
 
         self.decoder = nn.Sequential(
@@ -76,6 +94,7 @@ class Decoder(nn.Module):
             nn.BatchNorm1d(128),
             nn.ReLU(),
 
+            # DenseBlock 128
             nn.Linear(128, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
@@ -88,16 +107,21 @@ class Decoder(nn.Module):
         )
 
     def forward(self, latent, label, nm_label):
-        m_cond = self.condition_layer(label)
-        m_Hr, m_Hb = m_cond[:, :16], m_cond[:, 16:32]
+        m_Hr = self.condition_layer_Hr(label)
+        m_Hb = self.condition_layer_Hb(label)
+        # m_Hr, m_Hb = m_cond[:, :16], m_cond[:, 16:32]
         m_cond_latent = latent * m_Hr + m_Hb
         m_output = self.decoder(m_cond_latent)
         
-        nm_cond = self.condition_layer(nm_label)
-        nm_Hr, nm_Hb = m_cond[:, :16], m_cond[:, 16:32]
+        nm_Hr = self.condition_layer_Hr(nm_label)
+        nm_Hb = self.condition_layer_Hb(nm_label)
+
+        # nm_cond = self.condition_layer(nm_label)
+        # nm_Hr, nm_Hb = nm_cond[:, :16], nm_cond[:, 16:32]
         nm_cond_latent = latent * nm_Hr + nm_Hb
         nm_output = self.decoder(nm_cond_latent)
-        
+        # print("M HR, Hb", m_Hr, m_Hb)
+        # print("NM HR, Hb", nm_Hr, nm_Hb)
         return m_output, nm_output
 
     """ def predict(self, x, label):
