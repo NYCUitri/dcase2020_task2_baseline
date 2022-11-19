@@ -342,7 +342,7 @@ if __name__ == "__main__":
         en_val_loss_list = []
 
         en_loss_fn = nn.NLLLoss(reduction='sum')
-        en_optim = torch.optim.SGD(encoder.parameters(), lr=3e-6, weight_decay=1e-7)
+        en_optim = torch.optim.SGD(encoder.parameters(), lr=2e-6)
 
         encoder = encoder.to(device=device, dtype=torch.float32)
 
@@ -390,7 +390,7 @@ if __name__ == "__main__":
                     cls_output = cls_output.to(device=device, non_blocking=True, dtype=torch.float32)
                     label_batch = torch.argmax(label_batch, dim=1)
                     
-                    loss = en_loss_fn(cls_output, label_batch.long())
+                    loss = en_loss_fn(torch.log(cls_output), label_batch.long())
                     val_loss += loss.item()
 
                     del feature_batch, label_batch, cls_output
@@ -500,6 +500,9 @@ if __name__ == "__main__":
             decoder.eval()
 
             for feature_batch, label_batch, nm_label_batch in tqdm(val_batches):
+                
+                nm_input = train_batches[idx]
+                idx = (idx + 1) % (len(train_batches) - 1)
                 
                 feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)

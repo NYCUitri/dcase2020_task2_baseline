@@ -20,37 +20,22 @@ class Encoder(nn.Module):
     def __init__(self, paramF, paramM, classNum):
         super(Encoder, self).__init__()
 
-        self.encoder = nn.Sequential(
-            #nn.Flatten(),
-
-            # DenseBlock
-            nn.Linear(paramF * paramM, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-
-            # DenseBlock 64
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-
-            # DenseBlock 32
-            nn.Linear(64, 32),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-
-            # DenseBlock 16
-            nn.Linear(32, 16),
-            nn.BatchNorm1d(16),
-            nn.ReLU()
-        )
+        self.db_256 = DenseBlock(paramF * paramM, 256)
+        self.db_128 = DenseBlock(256, 128)
+        self.db_64 = DenseBlock(128, 64)
+        self.db_32 = DenseBlock(64, 32)
 
         self.classifier = nn.Sequential(
-            nn.Linear(16, classNum), 
+            nn.Linear(32, classNum), 
             nn.Softmax(dim=1)
         ) 
     
     def forward(self, x):
-        latent = self.encoder(x)
+        x = self.db_256(x)
+        x = self.db_128(x)
+        x = self.db_64(x)
+        latent = self.db_32(x)
+
         cls_output = self.classifier(latent)
         return latent, cls_output
 
@@ -58,70 +43,46 @@ class Decoder(nn.Module):
     def __init__(self, paramF, paramM, classNum):
         super(Decoder, self).__init__()
 
-        self.condition_layer_Hr = nn.Sequential(
-            nn.Linear(classNum, 16),
-            nn.BatchNorm1d(16),
-            nn.ReLU(),
+        self.db_64 = DenseBlock(32, 64)
+        self.db_128_1 = DenseBlock(64, 128)
+        self.db_128_2 = DenseBlock(128, 128)
+        self.db_256 = DenseBlock(128, 256)
+        self.output_layer = nn.Linear(256, paramM * paramF)
 
-            nn.Sigmoid(),
-
-            # nn.Linear(16, 32),
-            # nn.BatchNorm1d(32),
-            # nn.ReLU(),
-
-            # nn.Linear(32, 32)
-        )
-        self.condition_layer_Hb = nn.Sequential(
-            nn.Linear(classNum, 16),
-            nn.BatchNorm1d(16),
-            nn.ReLU(),
-
-            # nn.Sigmoid(),
-
-            # nn.Linear(16, 32),
-            # nn.BatchNorm1d(32),
-            # nn.ReLU(),
-
-            # nn.Linear(32, 32)
-        )
-
-        self.decoder = nn.Sequential(
-            nn.Linear(16, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-
-            nn.Linear(64, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-
-            # DenseBlock 128
-            nn.Linear(128, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-
-            nn.Linear(128, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-
-            nn.Linear(256, paramF * paramM)
-        )
+        self.film_32 = FiLMLayer(classNum, 32)
+        self.film_64 = FiLMLayer(classNum, 64)
+        self.film_128_1 = FiLMLayer(classNum, 128)
+        self.film_128_2 = FiLMLayer(classNum, 128)
 
     def forward(self, latent, label, nm_label):
-        m_Hr = self.condition_layer_Hr(label)
-        m_Hb = self.condition_layer_Hb(label)
-        # m_Hr, m_Hb = m_cond[:, :16], m_cond[:, 16:32]
-        m_cond_latent = latent * m_Hr + m_Hb
-        m_output = self.decoder(m_cond_latent)
-        
-        nm_Hr = self.condition_layer_Hr(nm_label)
-        nm_Hb = self.condition_layer_Hb(nm_label)
+        match_latent = self.film_32(label, latent)
+        match_latent = self.db_64(match_latent)
 
-        # nm_cond = self.condition_layer(nm_label)
-        # nm_Hr, nm_Hb = nm_cond[:, :16], nm_cond[:, 16:32]
-        nm_cond_latent = latent * nm_Hr + nm_Hb
-        nm_output = self.decoder(nm_cond_latent)
-        # print("M HR, Hb", m_Hr, m_Hb)
-        # print("NM HR, Hb", nm_Hr, nm_Hb)
+        match_latent = self.film_64(label, match_latent)
+        match_latent = self.db_128_1(match_latent)
+
+        match_latent = self.film_128_1(label, match_latent)
+        match_latent = self.db_128_2(match_latent)
+
+        match_latent = self.film_128_2(label, match_latent)
+        match_latent = self.db_256(match_latent)
+
+        non_match_latent = self.film_32(nm_label, latent)
+        non_match_latent = self.db_64(non_match_latent)
+
+        non_match_latent = self.film_64(nm_label, non_match_latent)
+        non_match_latent = self.db_128_1(non_match_latent)
+
+        non_match_latent = self.film_128_1(nm_label, non_match_latent)
+        non_match_latent = self.db_128_2(non_match_latent)
+
+        non_match_latent = self.film_128_2(nm_label, non_match_latent)
+        non_match_latent = self.db_256(non_match_latent)
+
+
+        m_output = self.output_layer(match_latent)
+        nm_output = self.outpu_layer(non_match_latent)
+
         return m_output, nm_output
 
     """ def predict(self, x, label):
@@ -130,42 +91,41 @@ class Decoder(nn.Module):
 
         return output """
 
-""" class FiLMLayer(nn.Module):
-    def __init__(self, classNum):
+class FiLMLayer(nn.Module):
+    def __init__(self, classNum, size):
         super(FiLMLayer, self).__init__()
 
+        self.size = size
         # Conditioning (Hr, Hb)
         # Hadamard Product
-        self.condition_r = nn.Sequential(
-            nn.Linear(classNum, 16),
-            nn.Sigmoid(),
-            nn.Linear(16, 16)
-        )
+        self.film = nn.Sequential(
+            nn.Linear(classNum, size),
+            nn.BatchNorm1d(size),
+            nn.ReLU(), 
 
-        self.condition_b = nn.Sequential(
-            nn.Linear(classNum, 16),
-            nn.Sigmoid(), 
-            nn.Linear(16, 16)
+            nn.Linear(size, 2*size),
+            nn.BatchNorm1d(2*size),
+            nn.ReLU()
         )
 
     def forward(self, label, latent): 
-        Hr = self.condition_r(label)
-        Hb = self.condition_b(label)
+        cond = self.film(label)
+        Hr, Hb = cond[:self.size], cond[self.size:]
 
         cond_latent = latent * Hr + Hb
-        return cond_latent """
+        return cond_latent
+class DenseBlock(nn.Module):
+    def __init__(self, in_size, out_size):
+        super(DenseBlock, self).__init__()
 
-# Reshape Layer
-class Reshape(nn.Module): 
-    def __init__(self, *args):
-        super(Reshape, self).__init__()
-        self.shape = args
+        self.block = nn.Sequential(
+            nn.Linear(in_size, out_size),
+            nn.BatchNorm1d(out_size),
+            nn.ReLU()
+        )
     
     def forward(self, x):
-        # return x.view(self.shape)
-        return x.view(-1, self.shape[0], self.shape[1])
-
-
+        return self.block(x)
 ##############################################################
 # Loss Function
 import numpy as np
