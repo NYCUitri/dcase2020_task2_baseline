@@ -15,4 +15,13 @@ def reconstruct_spectrogram(reconstructions, name=None):
         if name != None:
             img.save("./rec_imgs/"+str(name[i])+".png")
         else:
-            img.save("rec"+str(i)+".png")
+            img.save("./rec_imgs/"+str(i)+".png")
+
+def latent_distrbution(latents_list, name=""):
+    for latent in latents_list:
+        latent = latent.detach().cpu().numpy()
+        latent = latent.reshape((-1, 2))
+        print(latent.shape)
+        print(latent[:,0].shape, latent[:,1].shape)
+        plt.scatter(latent[:,0],latent[:,1], s=3, alpha=0.5)
+    plt.savefig("./rec_imgs/distrbution{}.png".format(name))
