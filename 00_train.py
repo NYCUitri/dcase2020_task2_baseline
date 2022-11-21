@@ -303,7 +303,7 @@ if __name__ == "__main__":
         import torch.nn as nn
         import torch
         from torch.utils.data import random_split, DataLoader
-        from pytorch_model import Encoder, Decoder, CustomLoss
+        from pytorch_model import Encoder, Decoder
         ########################################################################################
 
         paramF = param["feature"]["idcae"]["frames"]
@@ -332,6 +332,9 @@ if __name__ == "__main__":
         train_dataset, valid_dataset = random_split(dataset, [train_size, val_size])
         train_batches = DataLoader(dataset=MelDataLoader(train_dataset), batch_size=batch_size, shuffle=True)
         val_batches = DataLoader(dataset=MelDataLoader(valid_dataset), batch_size=batch_size, shuffle=True)
+
+        nm_batches = DataLoader(dataset=MelDataLoader(train_dataset), batch_size=batch_size, shuffle=True)
+        nm_val_batches = DataLoader(dataset=MelDataLoader(valid_dataset), batch_size=batch_size, shuffle=True)
 
         device = torch.device('cuda')
         
@@ -438,9 +441,9 @@ if __name__ == "__main__":
 
         decoder = decoder.to(device=device, dtype=torch.float32)  
         de_loss_fn = nn.MSELoss()  
-        de_optim = torch.optim.SGD(decoder.parameters(), lr=1e-4, weight_decay=1e-6)
-        scheduler = lr_sched.StepLR(optimizer=de_optim, step_size=5, gamma=0.95)
-        alpha = 0.8
+        de_optim = torch.optim.SGD(decoder.parameters(), lr=1e-3, weight_decay=1e-6)
+        scheduler = lr_sched.StepLR(optimizer=de_optim, step_size=10, gamma=0.9)
+        alpha = 0.5
         C = 5
 
         nm_input = np.empty(shape=(batch_size, dim))
@@ -461,16 +464,16 @@ if __name__ == "__main__":
 
             decoder.train()
 
-            idx = 100
+            iter_batches = iter(nm_batches)
+
             for feature_batch, label_batch, nm_label_batch in tqdm(train_batches):
+                nm_feature, _, _ = next(iter_batches)
                 de_optim.zero_grad()
-                
-                nm_input = train_batches[idx]
-                idx = (idx + 1) % (len(train_batches) - 1)
                 
                 feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
+                nm_feature = nm_feature.to(device, non_blocking=True, dtype=torch.float32)
                 
                 latent, _ = encoder(feature_batch)
                 
@@ -481,10 +484,7 @@ if __name__ == "__main__":
 
                 #nm_input = feature_batch * (-1)
                 m_loss = de_loss_fn(m_output, feature_batch)
-                if nm_output.shape[0] < batch_size:
-                    nm_loss = de_loss_fn(nm_output, nm_input[:nm_output.shape[0]])
-                else:
-                    nm_loss = de_loss_fn(nm_output, nm_input)
+                nm_loss = de_loss_fn(nm_output, nm_feature)
                 
                 loss = alpha * m_loss + (1-alpha) * nm_loss
                 loss.backward()
@@ -499,14 +499,15 @@ if __name__ == "__main__":
 
             decoder.eval()
 
+            iter_batches = iter(nm_val_batches)
+
             for feature_batch, label_batch, nm_label_batch in tqdm(val_batches):
-                
-                nm_input = train_batches[idx]
-                idx = (idx + 1) % (len(train_batches) - 1)
+                nm_feature, _, _ = next(iter_batches)
                 
                 feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
+                nm_feature = nm_feature.to(device, non_blocking=True, dtype=torch.float32)
                 
                 latent, _ = encoder(feature_batch)
 
@@ -515,10 +516,7 @@ if __name__ == "__main__":
                 nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
 
                 m_loss = de_loss_fn(m_output, feature_batch)
-                if nm_output.shape[0] < batch_size:
-                    nm_loss = de_loss_fn(nm_output, nm_input[:nm_output.shape[0]])
-                else:
-                    nm_loss = de_loss_fn(nm_output, nm_input)
+                nm_loss = de_loss_fn(nm_output, nm_feature)
 
                 bad_loss = de_loss_fn(nm_output, feature_batch)
                 bl += bad_loss.item()
@@ -528,7 +526,7 @@ if __name__ == "__main__":
                 ml += m_loss.item()
                 nml += nm_loss.item()
 
-                del m_output, nm_output, feature_batch, label_batch, nm_label_batch
+                del m_output, nm_output, feature_batch, label_batch, nm_label_batch, nm_feature
                 gc.collect()
 
             val_loss /= len(val_batches)

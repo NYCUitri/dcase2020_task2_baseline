@@ -49,71 +49,81 @@ class Decoder(nn.Module):
         self.db_256 = DenseBlock(128, 256)
         self.output_layer = nn.Linear(256, paramM * paramF)
 
-        self.film_32 = FiLMLayer(classNum, 32)
-        self.film_64 = FiLMLayer(classNum, 64)
-        self.film_128_1 = FiLMLayer(classNum, 128)
-        self.film_128_2 = FiLMLayer(classNum, 128)
+        self.mod_1 = ModulateBlock(classNum, 32, 32)
+        self.mod_2 = ModulateBlock(classNum, 32, 32)
+        self.mod_3 = ModulateBlock(classNum, 32, 32)
+        self.mod_4 = ModulateBlock(classNum, 32, 32)
 
     def forward(self, latent, label, nm_label):
-        match_latent = self.film_32(label, latent)
+        match_latent = self.mod_1(label, latent)
+        match_latent = self.mod_2(label, match_latent)
+        match_latent = self.mod_3(label, match_latent)
+        match_latent = self.mod_4(label, match_latent)
+
         match_latent = self.db_64(match_latent)
-
-        match_latent = self.film_64(label, match_latent)
         match_latent = self.db_128_1(match_latent)
-
-        match_latent = self.film_128_1(label, match_latent)
         match_latent = self.db_128_2(match_latent)
-
-        match_latent = self.film_128_2(label, match_latent)
         match_latent = self.db_256(match_latent)
 
-        non_match_latent = self.film_32(nm_label, latent)
+        non_match_latent = self.mod_1(nm_label, latent)
+        non_match_latent = self.mod_2(nm_label, non_match_latent)
+        non_match_latent = self.mod_3(nm_label, non_match_latent)
+        non_match_latent = self.mod_4(nm_label, non_match_latent)
+
         non_match_latent = self.db_64(non_match_latent)
-
-        non_match_latent = self.film_64(nm_label, non_match_latent)
         non_match_latent = self.db_128_1(non_match_latent)
-
-        non_match_latent = self.film_128_1(nm_label, non_match_latent)
         non_match_latent = self.db_128_2(non_match_latent)
-
-        non_match_latent = self.film_128_2(nm_label, non_match_latent)
         non_match_latent = self.db_256(non_match_latent)
 
-
         m_output = self.output_layer(match_latent)
-        nm_output = self.outpu_layer(non_match_latent)
+        nm_output = self.output_layer(non_match_latent)
 
         return m_output, nm_output
-
-    """ def predict(self, x, label):
-        cond_latent = self.condition(label, latent)
-        output = self.decoder(cond_latent)
-
-        return output """
 
 class FiLMLayer(nn.Module):
     def __init__(self, classNum, size):
         super(FiLMLayer, self).__init__()
 
         self.size = size
-        # Conditioning (Hr, Hb)
-        # Hadamard Product
-        self.film = nn.Sequential(
-            nn.Linear(classNum, size),
-            nn.BatchNorm1d(size),
-            nn.ReLU(), 
-
-            nn.Linear(size, 2*size),
-            nn.BatchNorm1d(2*size),
-            nn.ReLU()
-        )
+        self.modulate_fn = ConditionBlock(classNum, size)
 
     def forward(self, label, latent): 
-        cond = self.film(label)
-        Hr, Hb = cond[:self.size], cond[self.size:]
-
+        cond = self.modulate_fn(label)
+        #print(cond.shape)
+        #print(latent.shape)
+        Hr, Hb = cond[:, :self.size], cond[:, self.size:]
         cond_latent = latent * Hr + Hb
         return cond_latent
+
+class ConditionBlock(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(ConditionBlock, self).__init__()
+
+        self.gamma = nn.Sequential(
+            nn.Linear(input_size, output_size),
+            nn.BatchNorm1d(output_size),
+            nn.Sigmoid()
+        )
+
+        self.beta = nn.Sequential(
+            nn.Linear(input_size, output_size),
+            nn.BatchNorm1d(output_size),
+            nn.Sigmoid()
+        )
+
+        self.modulation = nn.Sequential(
+            nn.Linear(2*output_size, 2*output_size),
+            nn.BatchNorm1d(2*output_size),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        gamma = self.gamma(x)
+        beta = self.beta(x)
+        modulate_param = torch.cat((gamma, beta), dim=1)   
+        output = self.modulation(modulate_param)
+        return output
+
 class DenseBlock(nn.Module):
     def __init__(self, in_size, out_size):
         super(DenseBlock, self).__init__()
@@ -126,38 +136,20 @@ class DenseBlock(nn.Module):
     
     def forward(self, x):
         return self.block(x)
+
+class ModulateBlock(nn.Module):
+    def __init__(self, classNum, in_size, out_size):
+        super(ModulateBlock, self).__init__()
+
+        self.linear = nn.Linear(in_size, out_size)
+        self.norm = nn.BatchNorm1d(out_size)
+        self.modulation = FiLMLayer(classNum, out_size)
+        self.relu = nn.ReLU()
+
+    def forward(self, label, x):
+        x = self.linear(x)
+        x = self.norm(x)
+        x = self.modulation(label, x)
+        x = self.relu(x)
+        return x
 ##############################################################
-# Loss Function
-import numpy as np
-import torch.nn as nn
-##############################################################
-class CustomLoss(nn.Module):
-    def __init__(self, C, dim, batch_size):
-        super(CustomLoss, self).__init__()
-        
-        self.const_vector = np.empty(shape=(batch_size, dim))
-        self.const_vector.fill(C)
-        self.const_vector = torch.Tensor(self.const_vector).to(device=torch.device('cuda'), non_blocking=True, dtype=torch.float32)
-
-    def forward(self, m_output, nm_output, input):
-        #print(nm_output[1])
-        #nm_diff = torch.abs(nm_output - self.const_vector)
-        #print(nm_diff[1])
-        #nm_loss = torch.sum(nm_diff)
-        #nm_loss = torch.sqrt(nm_dist) 
-        #print(nm_loss)
-        
-        #m_diff = torch.abs(m_output - input)
-
-        loss_fn = nn.L1Loss()
-        #m_loss = torch.sum(m_diff)
-        #m_loss = torch.sqrt(m_dist)
-        #print(m_loss)
-        m_loss = loss_fn(m_output, input)
-
-        if input.shape[0] < self.const_vector.shape[0]:
-            nm_loss = loss_fn(nm_output, self.const_vector[:input.shape[0]])
-        else:
-            nm_loss = loss_fn(nm_output, self.const_vector)
-
-        return m_loss, nm_loss
