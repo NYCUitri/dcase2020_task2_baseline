@@ -32,8 +32,6 @@ def get_threshold(n_path, an_path, name=""):
         loss_anomaly = np.array(json.load(jsonfile))
 
     loss_con=np.concatenate((loss_normal, loss_anomaly), axis=None)
-    loss_normal = loss_normal[48410:-1]
-    loss_anomaly = loss_anomaly[48410:-1]
     ''' plot loss_normal and loss_anomaly'''
     e=int(min(loss_con))
     d=2.5
