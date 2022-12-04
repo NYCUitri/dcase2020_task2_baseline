@@ -225,7 +225,7 @@ if __name__ == "__main__":
             #y_pred = [0. for k in test_files]
             y_pred = []
 
-            loss_fn = nn.MSELoss()
+            loss_fn = nn.L1Loss()
 
             for file_idx, file_path in tqdm(enumerate(test_files), total=len(test_files)):
                 #try:
@@ -235,12 +235,6 @@ if __name__ == "__main__":
                                                 n_fft=param["feature"]["idcae"]["n_fft"],
                                                 hop_length=param["feature"]["idcae"]["hop_length"],
                                                 power=param["feature"]["idcae"]["power"])
-
-                data = vector_array.flatten()
-                mean = np.mean(data, dtype=np.float32)
-                std = np.std(data, dtype=np.float32)
-
-                vector_array = (vector_array - mean) / std
 
 
                 '''

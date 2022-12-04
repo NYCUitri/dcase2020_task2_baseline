@@ -23,5 +23,5 @@ def latent_distrbution(latents_list, name=""):
         latent = latent.reshape((-1, 2))
         print(latent.shape)
         print(latent[:,0].shape, latent[:,1].shape)
-        plt.scatter(latent[:,0],latent[:,1], s=3, alpha=0.5)
-    plt.savefig("./rec_imgs/distrbution{}.png".format(name))
+        plt.scatter(latent[:,0], latent[:,1], s=3, alpha=0.5)
+    plt.savefig("./rec_imgs/distrbution_{}.png".format(name))

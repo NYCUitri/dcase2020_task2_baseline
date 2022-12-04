@@ -149,7 +149,7 @@ def list_to_vector_array(file_list,
 
     #print(label)
     dataset = [[features[i], m_label[i], nm_label[i]] for i in range(len(m_label))]
-    return dataset
+    return dataset, features
         
 '''
 def file_list_generator(target_dir,
@@ -215,7 +215,7 @@ def file_list_generator(target_dir,
     # labels = numpy.concatenate((normal_labels, anomaly_labels), axis=0)
     random.shuffle(files)
     # files = files[:600]
-    files = files[:600]
+    files = files[:300]
     #files = files[:100]
     com.logger.info("train_file  num : {num}".format(num=len(files)))
     if len(files) == 0:
@@ -274,11 +274,12 @@ if __name__ == "__main__":
         print("============== DATASET_GENERATOR ==============")
 
         machine_id_list = com.get_machine_id_list(target_dir, dir_name="train")
+        target_vectors = np.zeros(shape=(len(machine_id_list), 640), dtype=np.float32)
 
         for i in range(len(machine_id_list)):
             files = file_list_generator(target_dir, machine_id_list[i])
 
-            sub_dataset = list_to_vector_array(files,
+            sub_dataset, dataset_feature = list_to_vector_array(files,
                                         cls_label=i,
                                         cls_num=len(machine_id_list),
                                         msg="generate train_dataset",
@@ -288,6 +289,9 @@ if __name__ == "__main__":
                                         hop_length=param["feature"]["idcae"]["hop_length"],
                                         power=param["feature"]["idcae"]["power"])
 
+            #print(sub_dataset.shape)
+            mean_vector = np.mean(dataset_feature, axis=0, dtype=np.float32, keepdims=False)
+            target_vectors[i] = mean_vector
 
             if i == 0:
                 dataset = sub_dataset
@@ -333,8 +337,8 @@ if __name__ == "__main__":
         train_batches = DataLoader(dataset=MelDataLoader(train_dataset), batch_size=batch_size, shuffle=True)
         val_batches = DataLoader(dataset=MelDataLoader(valid_dataset), batch_size=batch_size, shuffle=True)
 
-        nm_batches = DataLoader(dataset=MelDataLoader(train_dataset), batch_size=batch_size, shuffle=True)
-        nm_val_batches = DataLoader(dataset=MelDataLoader(valid_dataset), batch_size=batch_size, shuffle=True)
+        #nm_batches = DataLoader(dataset=MelDataLoader(train_dataset), batch_size=batch_size, shuffle=True)
+        #nm_val_batches = DataLoader(dataset=MelDataLoader(valid_dataset), batch_size=batch_size, shuffle=True)
 
         device = torch.device('cuda')
         
@@ -345,7 +349,7 @@ if __name__ == "__main__":
         en_val_loss_list = []
 
         en_loss_fn = nn.NLLLoss(reduction='sum')
-        en_optim = torch.optim.SGD(encoder.parameters(), lr=2e-6)
+        en_optim = torch.optim.Adam(encoder.parameters(), lr=1e-5)
 
         encoder = encoder.to(device=device, dtype=torch.float32)
 
@@ -440,15 +444,11 @@ if __name__ == "__main__":
         de_val_loss_list = []
 
         decoder = decoder.to(device=device, dtype=torch.float32)  
-        de_loss_fn = nn.MSELoss()  
-        de_optim = torch.optim.SGD(decoder.parameters(), lr=1e-3, weight_decay=1e-6)
-        scheduler = lr_sched.StepLR(optimizer=de_optim, step_size=10, gamma=0.9)
-        alpha = 0.5
-        C = 5
+        de_loss_fn = nn.L1Loss()  
 
-        nm_input = np.empty(shape=(batch_size, dim))
-        nm_input.fill(C)
-        nm_input = torch.Tensor(nm_input).to(device=device, non_blocking=True, dtype=torch.float32)
+        de_optim = torch.optim.Adam(decoder.parameters(), lr=1e-3)
+        scheduler = lr_sched.StepLR(optimizer=de_optim, step_size=5, gamma=0.95)
+        alpha = 0.8
         
 
         print("Start Decoder training...")
@@ -464,16 +464,13 @@ if __name__ == "__main__":
 
             decoder.train()
 
-            iter_batches = iter(nm_batches)
 
             for feature_batch, label_batch, nm_label_batch in tqdm(train_batches):
-                nm_feature, _, _ = next(iter_batches)
                 de_optim.zero_grad()
                 
                 feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
-                nm_feature = nm_feature.to(device, non_blocking=True, dtype=torch.float32)
                 
                 latent, _ = encoder(feature_batch)
                 
@@ -482,7 +479,9 @@ if __name__ == "__main__":
                 nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
                 #print(m_output)
 
-                #nm_input = feature_batch * (-1)
+                nm_labels = torch.argmax(nm_label_batch, dim=1)
+                nm_feature = target_vectors[nm_labels].to(device, non_blocking=True, dtype=torch.float32)
+
                 m_loss = de_loss_fn(m_output, feature_batch)
                 nm_loss = de_loss_fn(nm_output, nm_feature)
                 
@@ -499,21 +498,20 @@ if __name__ == "__main__":
 
             decoder.eval()
 
-            iter_batches = iter(nm_val_batches)
-
             for feature_batch, label_batch, nm_label_batch in tqdm(val_batches):
-                nm_feature, _, _ = next(iter_batches)
                 
                 feature_batch = feature_batch.to(device, non_blocking=True, dtype=torch.float32)
                 label_batch = label_batch.to(device, non_blocking=True, dtype=torch.float32)
                 nm_label_batch = nm_label_batch.to(device, non_blocking=True, dtype=torch.float32)
-                nm_feature = nm_feature.to(device, non_blocking=True, dtype=torch.float32)
                 
                 latent, _ = encoder(feature_batch)
 
                 m_output, nm_output = decoder(latent, label_batch, nm_label_batch)
                 m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
                 nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
+
+                nm_labels = torch.argmax(nm_label_batch, dim=1)
+                nm_feature = target_vectors[nm_labels].to(device, non_blocking=True, dtype=torch.float32)
 
                 m_loss = de_loss_fn(m_output, feature_batch)
                 nm_loss = de_loss_fn(nm_output, nm_feature)

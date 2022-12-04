@@ -10,6 +10,7 @@
 #########################################################################
 import torch
 import torch.nn as nn
+import numpy
 import random
 # from torch.autograd import Variable
 # from torchvision.datasets import CIFAR10
@@ -24,9 +25,11 @@ class Encoder(nn.Module):
         self.db_128 = DenseBlock(256, 128)
         self.db_64 = DenseBlock(128, 64)
         self.db_32 = DenseBlock(64, 32)
+        self.db_16 = DenseBlock(32, 16)
+        #self.db_8 = DenseBlock(16, 8)
 
         self.classifier = nn.Sequential(
-            nn.Linear(32, classNum), 
+            nn.Linear(16, classNum), 
             nn.Softmax(dim=1)
         ) 
     
@@ -34,7 +37,9 @@ class Encoder(nn.Module):
         x = self.db_256(x)
         x = self.db_128(x)
         x = self.db_64(x)
-        latent = self.db_32(x)
+        x = self.db_32(x)
+        #x = self.db_16(x)
+        latent = self.db_16(x)
 
         cls_output = self.classifier(latent)
         return latent, cls_output
@@ -43,16 +48,18 @@ class Decoder(nn.Module):
     def __init__(self, paramF, paramM, classNum):
         super(Decoder, self).__init__()
 
+        #self.db_16 = DenseBlock(8, 16)
+        self.db_32 = DenseBlock(16, 32)
         self.db_64 = DenseBlock(32, 64)
         self.db_128_1 = DenseBlock(64, 128)
         self.db_128_2 = DenseBlock(128, 128)
         self.db_256 = DenseBlock(128, 256)
         self.output_layer = nn.Linear(256, paramM * paramF)
 
-        self.mod_1 = ModulateBlock(classNum, 32, 32)
-        self.mod_2 = ModulateBlock(classNum, 32, 32)
-        self.mod_3 = ModulateBlock(classNum, 32, 32)
-        self.mod_4 = ModulateBlock(classNum, 32, 32)
+        self.mod_1 = ModulateBlock(classNum, 8, 16)
+        self.mod_2 = ModulateBlock(classNum, 16, 16)
+        self.mod_3 = ModulateBlock(classNum, 16, 16)
+        self.mod_4 = ModulateBlock(classNum, 16, 16)
 
     def forward(self, latent, label, nm_label):
         match_latent = self.mod_1(label, latent)
@@ -60,6 +67,8 @@ class Decoder(nn.Module):
         match_latent = self.mod_3(label, match_latent)
         match_latent = self.mod_4(label, match_latent)
 
+        #match_latent = self.db_16(match_latent)
+        match_latent = self.db_32(match_latent)
         match_latent = self.db_64(match_latent)
         match_latent = self.db_128_1(match_latent)
         match_latent = self.db_128_2(match_latent)
@@ -70,6 +79,8 @@ class Decoder(nn.Module):
         non_match_latent = self.mod_3(nm_label, non_match_latent)
         non_match_latent = self.mod_4(nm_label, non_match_latent)
 
+        #non_match_latent = self.db_16(non_match_latent)
+        non_match_latent = self.db_32(non_match_latent)
         non_match_latent = self.db_64(non_match_latent)
         non_match_latent = self.db_128_1(non_match_latent)
         non_match_latent = self.db_128_2(non_match_latent)
@@ -153,3 +164,4 @@ class ModulateBlock(nn.Module):
         x = self.relu(x)
         return x
 ##############################################################
+    

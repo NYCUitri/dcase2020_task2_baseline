@@ -166,9 +166,9 @@ def file_to_vector_array(file_name,
     vector_array = numpy.zeros((vector_array_size, dims), dtype=numpy.float32)
 
     # 07 normalization
-    mean = numpy.mean(log_mel_spectrogram, dtype=numpy.float32, axis=0, keepdims=True)
-    std = numpy.std(log_mel_spectrogram, dtype=numpy.float32, axis=0, keepdims=True)
-    log_mel_spectrogram = (log_mel_spectrogram - mean) / std
+    #mean = numpy.mean(log_mel_spectrogram, dtype=numpy.float32, axis=0, keepdims=True)
+    #std = numpy.std(log_mel_spectrogram, dtype=numpy.float32, axis=0, keepdims=True)
+    #log_mel_spectrogram = (log_mel_spectrogram - mean) / std
 
     # 08 create dataset
     for t in range(frames):
