@@ -119,12 +119,10 @@ def list_to_vector_array(file_list,
                                                 n_fft=n_fft,
                                                 hop_length=hop_length,
                                                 power=power)
-        #print(vector_array)
 
         if idx == 0:
             features = np.zeros((vector_array.shape[0] * len(file_list), dims), dtype=np.float32)
         features[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
-
         del vector_array
         gc.collect()
 
@@ -146,8 +144,8 @@ def list_to_vector_array(file_list,
 
         nm_idx = random.choice(nm_indices)
         nm_label[i][nm_idx] = 1
-
-    #print(label)
+    from reconstruct_img import reconstruct_spectrogram
+    reconstruct_spectrogram([features[0], features[1], features[2]], ["features0", "features1", "features2"])
     dataset = [[features[i], m_label[i], nm_label[i]] for i in range(len(m_label))]
     return dataset
         
@@ -269,7 +267,7 @@ if __name__ == "__main__":
             com.logger.info("model exists")
             continue
         
-        writer = SummaryWriter()
+        writer = SummaryWriter(comment="_"+machine_type)
         # generate dataset
         print("============== DATASET_GENERATOR ==============")
 
@@ -304,6 +302,8 @@ if __name__ == "__main__":
         import torch
         from torch.utils.data import random_split, DataLoader
         from pytorch_model import Encoder, Decoder, CustomLoss
+        import json
+        # from get_Threshold import get_threshold
         ########################################################################################
 
         paramF = param["feature"]["idcae"]["frames"]
@@ -342,10 +342,12 @@ if __name__ == "__main__":
         en_val_loss_list = []
 
         en_loss_fn = nn.CrossEntropyLoss(reduction='sum')
-        en_optim = torch.optim.SGD(encoder.parameters(), lr=3e-6, weight_decay=1e-7)
+        # ToyCar
+        # en_optim = torch.optim.SGD(encoder.parameters(), lr=3e-6, weight_decay=1e-7)
 
+        # else:
+        en_optim = torch.optim.SGD(encoder.parameters(), lr=1e-6, weight_decay=1e-7)
         encoder = encoder.to(device=device, dtype=torch.float32)
-
         if os.path.exists(encoder_file_path):
             print("Encoder exists...")
             encoder.load_state_dict(torch.load(encoder_file_path))
@@ -373,10 +375,8 @@ if __name__ == "__main__":
                     en_optim.step()
 
                     train_loss += loss.item()
-
                     del feature_batch, label_batch, cls_output
                     gc.collect()
-
                 train_loss /= len(train_batches)
                 en_train_loss_list.append(train_loss)
 
@@ -411,10 +411,11 @@ if __name__ == "__main__":
         de_val_loss_list = []
 
         decoder = decoder.to(device=device, dtype=torch.float32)  
-        de_loss_fn = nn.MSELoss()  
-        de_optim = torch.optim.SGD(decoder.parameters(), lr=1e-4, weight_decay=1e-6)
-        scheduler = lr_sched.StepLR(optimizer=de_optim, step_size=5, gamma=0.95)
-        alpha = 0.8
+        de_loss_fn = nn.MSELoss()
+
+        de_optim = torch.optim.SGD(decoder.parameters(), lr=5e-4, weight_decay=1e-7)
+        scheduler = lr_sched.StepLR(optimizer=de_optim, step_size=5, gamma=0.90)
+        alpha = 0.75
         C = 5
 
         nm_input = np.empty(shape=(batch_size, dim))
@@ -424,7 +425,9 @@ if __name__ == "__main__":
 
         print("Start Decoder training...")
         encoder.eval()
-
+        m_lost_list = np.array([])
+        nm_lost_list = np.array([])
+        m_output_toimg, nm_output_toimg = None, None
         for epoch in range(1, epochs+1):
             train_loss = 0.0
             val_loss = 0.0
@@ -432,9 +435,8 @@ if __name__ == "__main__":
             nml = 0.0
             bl = 0.0
             print("Epoch: {}".format(epoch))
-
+            nm_loss, m_loss = 0, 0
             decoder.train()
-
             for feature_batch, label_batch, nm_label_batch in tqdm(train_batches):
                 de_optim.zero_grad()
                 
@@ -450,24 +452,31 @@ if __name__ == "__main__":
                 m_output, nm_output = decoder(latent, label_batch, nm_label_batch)
                 m_output = m_output.to(device, non_blocking=True, dtype=torch.float32)
                 nm_output = nm_output.to(device, non_blocking=True, dtype=torch.float32)
-                #print(m_output)
 
-                #nm_input = feature_batch * (-1)
                 m_loss = de_loss_fn(m_output, feature_batch)
+                nm_to_m = de_loss_fn(nm_output, feature_batch)
                 if nm_output.shape[0] < batch_size:
                     nm_loss = de_loss_fn(nm_output, nm_input[:nm_output.shape[0]])
                 else:
                     nm_loss = de_loss_fn(nm_output, nm_input)
+
+                # m_loss, nm_loss = de_loss_fn(m_output, nm_output, feature_batch)
                 
                 loss = alpha * m_loss + (1-alpha) * nm_loss
+
                 loss.backward()
                 de_optim.step()
                 train_loss += loss.item()
-
+                m_output_toimg = m_output.cpu().detach().numpy()
+                nm_output_toimg = nm_output.cpu().detach().numpy()
+                if epoch == epochs:
+                    m_lost_list = np.concatenate((m_lost_list, m_loss.cpu().detach().numpy()), axis=None)
+                    nm_lost_list = np.concatenate((nm_lost_list, nm_to_m.cpu().detach().numpy()), axis=None)   
                 del m_output, nm_output, feature_batch, label_batch, nm_label_batch
-                gc.collect()
-                
+                gc.collect() 
             train_loss /= len(train_batches)
+            # print("loss m & nm:", m_loss.cpu().detach().numpy(), nm_loss.cpu().detach().numpy(), train_loss)
+
             de_train_loss_list.append(train_loss)
 
             decoder.eval()
@@ -500,11 +509,11 @@ if __name__ == "__main__":
                 val_loss += loss.item()
                 ml += m_loss.item()
                 nml += nm_loss.item()
-
                 del m_output, nm_output, feature_batch, label_batch, nm_label_batch
                 gc.collect()
-
             val_loss /= len(val_batches)
+            # print("val loss m & nm:", m_loss.cpu().detach().numpy(), nm_loss.cpu().detach().numpy(), val_loss)
+
             ml /= len(val_batches)
             nml /= len(val_batches)
             bl /= len(val_batches)
@@ -519,7 +528,6 @@ if __name__ == "__main__":
             writer.add_scalar('bad loss', bl, epoch)
 
             scheduler.step()
-
         visualizer.loss_plot(de_train_loss_list, de_val_loss_list)
         visualizer.save_figure(history_img)
 
@@ -527,7 +535,23 @@ if __name__ == "__main__":
 
         com.logger.info("save_model -> en: {en_path} de: {de_path}".format(en_path=encoder_file_path, de_path=decoder_file_path))
 
+        from reconstruct_img import reconstruct_spectrogram
+        # from evt import evt
+        reconstruct_spectrogram([m_output_toimg[0], m_output_toimg[1], m_output_toimg[2], nm_output_toimg[0], nm_output_toimg[1], nm_output_toimg[2]], ["m0", "m1", "m2", "nm0", "nm1", "nm2"])
+        # latent_distrbution(latents_list=[m_lost_list, nm_lost_list], labels=["match", "non_match"], name="m_nm_output")
+        n_file_name = "./loss_record/" + machine_type + "_normal_loss.json"
+        with open(n_file_name, 'w', encoding='utf-8') as f:
+            json.dump(list(m_lost_list.astype(float)), f, ensure_ascii=False)
+        an_file_name = "./loss_record/" + machine_type + "_anormal_loss.json"
+        with open(an_file_name, 'w', encoding='utf-8') as f:
+            json.dump(list(nm_lost_list.astype(float)), f, ensure_ascii=False)
+        # get threshold
+        # threshold = get_threshold(n_file_name, an_file_name, machine_type)
+        # print(threshold)
+        # file_name = "./loss_record/" + machine_type + "_threshold.json"
+        # with open(file_name, 'w', encoding='utf-8') as f:
+        #     json.dump(threshold, f, ensure_ascii=False)
+
         del dataset, train_batches, val_batches
         gc.collect()
-
         time.sleep(30)
